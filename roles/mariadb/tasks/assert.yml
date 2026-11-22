@@ -1,0 +1,51 @@
+---
+- name: Verify the supported platform
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "AlmaLinux"
+      - ansible_distribution_major_version | int == 10
+    fail_msg: Only AlmaLinux 10 is supported.
+    quiet: true
+
+- name: Validate the MariaDB version
+  ansible.builtin.assert:
+    that:
+      - mariadb_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+    fail_msg: mariadb_version must be a full version such as "11.8.10".
+    quiet: true
+
+- name: Require a non-trivial application password
+  ansible.builtin.assert:
+    that:
+      - mariadb_app_password is defined
+      - mariadb_app_password | length >= 16
+    fail_msg: Set mariadb_app_password from SOPS to a value of at least 16 characters.
+    quiet: true
+  no_log: true
+
+- name: Validate the listener
+  ansible.builtin.assert:
+    that:
+      - mariadb_bind_address in ['127.0.0.1', '0.0.0.0']
+    fail_msg: mariadb_bind_address must be 127.0.0.1 or 0.0.0.0.
+    quiet: true
+
+- name: Require firewall rules when listening on every interface
+  ansible.builtin.assert:
+    that:
+      - >-
+        mariadb_bind_address != '0.0.0.0' or
+        not (mariadb_manage_firewall | bool) or
+        mariadb_allowed_cidrs | length > 0
+    fail_msg: >-
+      Set mariadb_allowed_cidrs when MariaDB listens on every interface and
+      firewalld is managed.
+    quiet: true
+
+- name: Validate the application identifiers
+  ansible.builtin.assert:
+    that:
+      - mariadb_app_user is match('^[a-z_][a-z0-9_]*$')
+      - mariadb_app_database is match('^[a-z_][a-z0-9_]*$')
+    fail_msg: Application user and database names must be lowercase identifiers.
+    quiet: true

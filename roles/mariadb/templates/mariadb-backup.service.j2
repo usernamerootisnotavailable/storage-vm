@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+[Unit]
+Description=MariaDB logical backup
+After={{ mariadb_service_name }}.service
+Requires={{ mariadb_service_name }}.service
+
+[Service]
+Type=oneshot
+ExecStart={{ mariadb_backup_script_path }}

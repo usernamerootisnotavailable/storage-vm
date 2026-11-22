@@ -1,0 +1,90 @@
+---
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Verify MariaDB is running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services.get(mariadb_service_name ~ '.service', {}).get('state', '') == 'running'
+    fail_msg: MariaDB is not running.
+    quiet: true
+
+- name: Verify MariaDB accepts connections
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mariadb-admin
+      - --socket={{ mariadb_socket }}
+      - --user=root
+      - ping
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Verify the application connection over TLS
+  ansible.mariadb.mariadb_query:
+    login_host: 127.0.0.1
+    login_port: "{{ mariadb_port }}"
+    login_user: "{{ mariadb_app_user }}"
+    login_password: "{{ mariadb_app_password }}"
+    login_db: "{{ mariadb_app_database }}"
+    ca_cert: "{{ mariadb_tls_ca_path }}"
+    query: >-
+      SELECT DATABASE() AS database_name,
+             CURRENT_USER() AS current_user,
+             (SELECT VARIABLE_VALUE
+              FROM information_schema.SESSION_STATUS
+              WHERE VARIABLE_NAME = 'Ssl_cipher') AS ssl_cipher
+  register: mariadb_app_check
+  changed_when: false
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Assert the application connection is correct
+  ansible.builtin.assert:
+    that:
+      - mariadb_app_check.query_result[0].database_name == mariadb_app_database
+      - mariadb_app_check.query_result[0].current_user is search('^' ~ mariadb_app_user ~ '@')
+      - mariadb_app_check.query_result[0].ssl_cipher | default('') | length > 0
+    fail_msg: The application connection did not use the expected database, user, or TLS.
+    quiet: true
+  when: not ansible_check_mode
+
+- name: Verify the TLS files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ mariadb_tls_ca_path }}"
+    - "{{ mariadb_tls_cert_path }}"
+    - "{{ mariadb_tls_key_path }}"
+  register: mariadb_tls_check
+
+- name: Assert the TLS files are present
+  ansible.builtin.assert:
+    that:
+      - mariadb_tls_check.results[0].stat.exists
+      - mariadb_tls_check.results[1].stat.exists
+      - mariadb_tls_check.results[2].stat.exists
+      - mariadb_tls_check.results[2].stat.mode | default('') in ['0600', '0640']
+    fail_msg: MariaDB TLS files are missing or the private key permissions are unsafe.
+    quiet: true
+
+- name: Verify the backup timer
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-enabled
+      - "{{ mariadb_backup_timer_name }}"
+  register: mariadb_backup_timer_check
+  changed_when: false
+  when:
+    - mariadb_backup_enabled | bool
+    - not ansible_check_mode
+
+- name: Assert the backup timer is enabled
+  ansible.builtin.assert:
+    that:
+      - mariadb_backup_timer_check.stdout == 'enabled'
+    fail_msg: The MariaDB backup timer is not enabled.
+    quiet: true
+  when:
+    - mariadb_backup_enabled | bool
+    - not ansible_check_mode

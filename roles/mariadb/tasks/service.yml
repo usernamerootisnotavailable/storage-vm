@@ -1,0 +1,23 @@
+---
+- name: Enable and start MariaDB
+  ansible.builtin.systemd_service:
+    name: "{{ mariadb_service_name }}"
+    enabled: true
+    state: started
+
+- name: Apply pending MariaDB restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for MariaDB to accept connections
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/mariadb-admin
+      - --socket={{ mariadb_socket }}
+      - --user=root
+      - ping
+  register: mariadb_ready
+  until: mariadb_ready.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+  when: not ansible_check_mode

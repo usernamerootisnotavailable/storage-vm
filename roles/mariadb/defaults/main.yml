@@ -1,0 +1,70 @@
+---
+# mariadb_version is required and pinned in inventory versions.yml.
+mariadb_port: 3306
+mariadb_bind_address: "127.0.0.1"
+mariadb_socket: "/var/lib/mysql/mysql.sock"
+mariadb_datadir: "/var/lib/mysql"
+mariadb_log_dir: "/var/log/mariadb"
+mariadb_service_name: mariadb
+mariadb_config_file: /etc/my.cnf.d/99-storage-host.cnf
+
+mariadb_repo_baseurl: >-
+  https://mirror.mariadb.org/yum/{{ mariadb_version.split('.')[0:2] | join('.') }}/rhel/10/$basearch
+mariadb_gpgkey_url: "https://mariadb.org/mariadb_release_signing_key.pgp"
+mariadb_gpgkey_checksum: "sha256:00adb387f4c12e8982cfc28165d225695621494354cd58108c6845063bfb74b5"
+mariadb_gpgkey_path: /etc/pki/rpm-gpg/MariaDB-Release-Key.pgp
+mariadb_repo_name: >-
+  mariadb-{{ mariadb_version.split('.')[0:2] | join('.') }}
+
+mariadb_packages:
+  - "MariaDB-server-{{ mariadb_version }}"
+  - "MariaDB-client-{{ mariadb_version }}"
+  - firewalld
+  - libselinux-utils
+  - policycoreutils
+  - policycoreutils-python-utils
+  - python3-PyMySQL
+  - python3-cryptography
+  - python3-firewall
+  - python3-libselinux
+
+mariadb_allowed_cidrs: []
+mariadb_manage_firewall: "{{ common_firewall_enabled | default(true) }}"
+mariadb_firewall_zone: "{{ common_firewall_zone | default('public') }}"
+
+mariadb_app_user: app
+mariadb_app_database: appdb
+mariadb_app_hosts:
+  - localhost
+  - 127.0.0.1
+
+mariadb_max_connections: 100
+mariadb_innodb_buffer_pool_size: "256M"
+mariadb_max_allowed_packet: "64M"
+mariadb_character_set: utf8mb4
+mariadb_collation: utf8mb4_unicode_ci
+mariadb_slow_query_log: true
+mariadb_long_query_time: 1
+
+mariadb_tls_mode: generated
+mariadb_tls_dir: "{{ mariadb_datadir }}/tls"
+mariadb_tls_ca_path: "{{ mariadb_tls_dir }}/ca.crt"
+mariadb_tls_cert_path: "{{ mariadb_tls_dir }}/server.crt"
+mariadb_tls_key_path: "{{ mariadb_tls_dir }}/server.key"
+mariadb_tls_common_name: "{{ inventory_hostname }}"
+mariadb_tls_sans:
+  - "DNS:{{ inventory_hostname }}"
+  - "DNS:localhost"
+  - "IP:127.0.0.1"
+mariadb_tls_key_size: 2048
+mariadb_tls_cert_validity_days: 825
+mariadb_tls_ca_validity_days: 3650
+mariadb_tls_min_version: "TLSv1.2,TLSv1.3"
+
+mariadb_backup_enabled: true
+mariadb_backup_dir: /var/backups/mariadb
+mariadb_backup_retention_days: 7
+mariadb_backup_on_calendar: "*-*-* 02:45:00"
+mariadb_backup_script_path: /usr/local/sbin/mariadb-backup
+mariadb_backup_service_name: mariadb-backup.service
+mariadb_backup_timer_name: mariadb-backup.timer

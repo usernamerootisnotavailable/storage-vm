@@ -1,0 +1,90 @@
+---
+- name: Harden MariaDB and create application access
+  when: not ansible_check_mode
+  block:
+    - name: Read the root authentication plugin
+      ansible.mariadb.mariadb_query:
+        login_unix_socket: "{{ mariadb_socket }}"
+        login_user: root
+        check_implicit_admin: true
+        query: >-
+          SELECT plugin
+          FROM mysql.user
+          WHERE User = 'root' AND Host = 'localhost'
+      register: mariadb_root_plugin
+      changed_when: false
+      no_log: true
+
+    - name: Require unix_socket authentication for local root
+      ansible.mariadb.mariadb_query:
+        login_unix_socket: "{{ mariadb_socket }}"
+        login_user: root
+        check_implicit_admin: true
+        query: "ALTER USER 'root'@'localhost' IDENTIFIED VIA unix_socket"
+      when: mariadb_root_plugin.query_result[0].plugin | default('') != 'unix_socket'
+      changed_when: true
+      no_log: true
+
+    - name: Find anonymous MariaDB accounts
+      ansible.mariadb.mariadb_query:
+        login_unix_socket: "{{ mariadb_socket }}"
+        login_user: root
+        check_implicit_admin: true
+        query: "SELECT User, Host FROM mysql.user WHERE User = ''"
+      register: mariadb_anonymous_users
+      changed_when: false
+
+    - name: Remove anonymous MariaDB accounts
+      ansible.mariadb.mariadb_query:
+        login_unix_socket: "{{ mariadb_socket }}"
+        login_user: root
+        check_implicit_admin: true
+        query: "DROP USER IF EXISTS ''@'{{ item.Host }}'"
+      loop: "{{ mariadb_anonymous_users.query_result }}"
+      loop_control:
+        label: "{{ item.User }}@{{ item.Host }}"
+      when: mariadb_anonymous_users.query_result | length > 0
+      changed_when: true
+
+    - name: Remove remote root accounts
+      ansible.mariadb.mariadb_user:
+        name: root
+        host: "%"
+        state: absent
+        login_unix_socket: "{{ mariadb_socket }}"
+        login_user: root
+        check_implicit_admin: true
+
+    - name: Remove the test database
+      ansible.mariadb.mariadb_db:
+        name: test
+        state: absent
+        login_unix_socket: "{{ mariadb_socket }}"
+        login_user: root
+        check_implicit_admin: true
+
+    - name: Create the application database
+      ansible.mariadb.mariadb_db:
+        name: "{{ mariadb_app_database }}"
+        encoding: "{{ mariadb_character_set }}"
+        collation: "{{ mariadb_collation }}"
+        login_unix_socket: "{{ mariadb_socket }}"
+        login_user: root
+        check_implicit_admin: true
+        state: present
+
+    - name: Create the application users
+      ansible.mariadb.mariadb_user:
+        name: "{{ mariadb_app_user }}"
+        host: "{{ item }}"
+        password: "{{ mariadb_app_password }}"
+        priv: "{{ mariadb_app_database }}.*:ALL"
+        tls_requires: "{{ {'SSL': true} if item != 'localhost' else omit }}"
+        login_unix_socket: "{{ mariadb_socket }}"
+        login_user: root
+        check_implicit_admin: true
+        state: present
+      loop: "{{ mariadb_app_hosts }}"
+      loop_control:
+        label: "{{ item }}"
+      no_log: true

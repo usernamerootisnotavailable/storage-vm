@@ -1,0 +1,157 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure MariaDB 11.8
+    description:
+      - Installs MariaDB from the vendor EL10 repository, configures TLS and
+        SCRAM-compatible authentication, creates an application database and
+        users, and installs a logical backup timer.
+    options:
+      mariadb_version:
+        type: str
+        required: true
+        description: MariaDB version, pinned in inventory.
+      mariadb_port:
+        type: int
+        description: Listener port.
+      mariadb_bind_address:
+        type: str
+        description: Listener address; 127.0.0.1 or 0.0.0.0.
+      mariadb_socket:
+        type: str
+        description: Unix socket path.
+      mariadb_datadir:
+        type: str
+        description: Data directory.
+      mariadb_log_dir:
+        type: str
+        description: Log directory.
+      mariadb_service_name:
+        type: str
+        description: systemd service name.
+      mariadb_config_file:
+        type: str
+        description: Managed configuration file.
+      mariadb_repo_baseurl:
+        type: str
+        description: MariaDB repository base URL.
+      mariadb_gpgkey_url:
+        type: str
+        description: MariaDB signing key URL.
+      mariadb_gpgkey_checksum:
+        type: str
+        description: SHA256 checksum of the signing key.
+      mariadb_gpgkey_path:
+        type: str
+        description: Local signing key path.
+      mariadb_repo_name:
+        type: str
+        description: Repository name.
+      mariadb_packages:
+        type: list
+        elements: str
+        description: Packages required by the role.
+      mariadb_allowed_cidrs:
+        type: list
+        elements: str
+        description: Source CIDRs allowed through firewalld.
+      mariadb_manage_firewall:
+        type: bool
+        description: Manage firewalld rules when client CIDRs are set.
+      mariadb_firewall_zone:
+        type: str
+        description: firewalld zone.
+      mariadb_app_user:
+        type: str
+        description: Application user.
+      mariadb_app_database:
+        type: str
+        description: Application database.
+      mariadb_app_password:
+        type: str
+        required: true
+        no_log: true
+        description: Application password from SOPS.
+      mariadb_app_hosts:
+        type: list
+        elements: str
+        description: Host patterns for the application user.
+      mariadb_max_connections:
+        type: int
+        description: Maximum connections.
+      mariadb_innodb_buffer_pool_size:
+        type: str
+        description: InnoDB buffer pool size.
+      mariadb_max_allowed_packet:
+        type: str
+        description: Maximum packet size.
+      mariadb_character_set:
+        type: str
+        description: Server character set.
+      mariadb_collation:
+        type: str
+        description: Server collation.
+      mariadb_slow_query_log:
+        type: bool
+        description: Enable the slow query log.
+      mariadb_long_query_time:
+        type: int
+        description: Slow query threshold in seconds.
+      mariadb_tls_mode:
+        type: str
+        choices:
+          - generated
+          - provided
+        description: Generate a private CA and certificate, or use provided files.
+      mariadb_tls_dir:
+        type: str
+        description: TLS directory.
+      mariadb_tls_ca_path:
+        type: str
+        description: CA certificate path.
+      mariadb_tls_cert_path:
+        type: str
+        description: Server certificate path.
+      mariadb_tls_key_path:
+        type: str
+        description: Server private key path.
+      mariadb_tls_common_name:
+        type: str
+        description: Generated certificate common name.
+      mariadb_tls_sans:
+        type: list
+        elements: str
+        description: Generated certificate subject alternative names.
+      mariadb_tls_key_size:
+        type: int
+        description: Generated RSA key size.
+      mariadb_tls_cert_validity_days:
+        type: int
+        description: Generated server certificate validity.
+      mariadb_tls_ca_validity_days:
+        type: int
+        description: Generated CA validity.
+      mariadb_tls_min_version:
+        type: str
+        description: Accepted TLS versions.
+      mariadb_backup_enabled:
+        type: bool
+        description: Install the logical backup timer.
+      mariadb_backup_dir:
+        type: str
+        description: Local backup directory.
+      mariadb_backup_retention_days:
+        type: int
+        description: Local retention.
+      mariadb_backup_on_calendar:
+        type: str
+        description: systemd timer schedule.
+      mariadb_backup_script_path:
+        type: str
+        description: Backup script path.
+      mariadb_backup_service_name:
+        type: str
+        description: Backup service name.
+      mariadb_backup_timer_name:
+        type: str
+        description: Backup timer name.

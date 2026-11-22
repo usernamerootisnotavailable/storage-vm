@@ -1,0 +1,9 @@
+---
+- name: Configure MariaDB
+  ansible.builtin.template:
+    src: my.cnf.j2
+    dest: "{{ mariadb_config_file }}"
+    owner: root
+    group: mysql
+    mode: "0640"
+  notify: Restart mariadb

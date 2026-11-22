@@ -1,0 +1,11 @@
+---
+- name: Restart mariadb
+  ansible.builtin.systemd_service:
+    name: "{{ mariadb_service_name }}"
+    state: restarted
+
+- name: Restart the MariaDB backup timer
+  ansible.builtin.systemd_service:
+    name: "{{ mariadb_backup_timer_name }}"
+    state: restarted
+    daemon_reload: true

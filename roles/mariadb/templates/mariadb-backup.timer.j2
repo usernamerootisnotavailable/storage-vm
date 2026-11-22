@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Daily MariaDB logical backup
+
+[Timer]
+OnCalendar={{ mariadb_backup_on_calendar }}
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

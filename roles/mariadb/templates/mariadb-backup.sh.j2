@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+set -euo pipefail
+umask 077
+
+backup_dir="{{ mariadb_backup_dir }}"
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+output="${backup_dir}/mariadb-${stamp}.sql.gz"
+temporary="${output}.tmp"
+
+trap 'rm -f "${temporary}"' EXIT
+
+/usr/bin/mariadb-dump \
+  --defaults-file={{ mariadb_config_file }} \
+  --all-databases \
+  --single-transaction \
+  --quick \
+  --routines \
+  --events \
+  --triggers \
+  --default-character-set={{ mariadb_character_set }} \
+  | gzip -9 > "${temporary}"
+
+mv "${temporary}" "${output}"
+find "${backup_dir}" -type f -name 'mariadb-*.sql.gz' -mtime +{{ mariadb_backup_retention_days }} -delete

@@ -1,0 +1,28 @@
+# {{ ansible_managed }}
+[client]
+socket = {{ mariadb_socket }}
+port = {{ mariadb_port }}
+
+[mysqld]
+bind-address = {{ mariadb_bind_address }}
+port = {{ mariadb_port }}
+socket = {{ mariadb_socket }}
+datadir = {{ mariadb_datadir }}
+pid-file = {{ mariadb_datadir }}/mariadb.pid
+max_connections = {{ mariadb_max_connections }}
+innodb_buffer_pool_size = {{ mariadb_innodb_buffer_pool_size }}
+innodb_flush_log_at_trx_commit = 1
+max_allowed_packet = {{ mariadb_max_allowed_packet }}
+character-set-server = {{ mariadb_character_set }}
+collation-server = {{ mariadb_collation }}
+skip-name-resolve = 1
+local-infile = 0
+symbolic-links = 0
+require_secure_transport = ON
+ssl-ca = {{ mariadb_tls_ca_path }}
+ssl-cert = {{ mariadb_tls_cert_path }}
+ssl-key = {{ mariadb_tls_key_path }}
+tls_version = {{ mariadb_tls_min_version }}
+slow_query_log = {{ 1 if mariadb_slow_query_log | bool else 0 }}
+long_query_time = {{ mariadb_long_query_time }}
+log_error = {{ mariadb_log_dir }}/mariadb.log

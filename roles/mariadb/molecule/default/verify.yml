@@ -1,0 +1,28 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Verify the MariaDB role
+      ansible.builtin.include_role:
+        name: mariadb
+        tasks_from: verify
+
+    - name: Run the MariaDB backup service
+      ansible.builtin.systemd_service:
+        name: mariadb-backup.service
+        state: started
+
+    - name: Find generated MariaDB backups
+      ansible.builtin.find:
+        paths: "{{ mariadb_backup_dir }}"
+        patterns: "mariadb-*.sql.gz"
+      register: mariadb_backups
+
+    - name: Assert a backup was created
+      ansible.builtin.assert:
+        that:
+          - mariadb_backups.matched | int > 0
+        fail_msg: The MariaDB backup service did not create a dump.
+        quiet: true

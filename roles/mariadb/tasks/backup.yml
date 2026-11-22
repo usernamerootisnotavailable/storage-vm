@@ -1,0 +1,79 @@
+---
+- name: Configure local MariaDB backups
+  when: mariadb_backup_enabled | bool
+  block:
+    - name: Ensure the backup directory exists
+      ansible.builtin.file:
+        path: "{{ mariadb_backup_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Install the MariaDB backup script
+      ansible.builtin.template:
+        src: mariadb-backup.sh.j2
+        dest: "{{ mariadb_backup_script_path }}"
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the MariaDB backup service
+      ansible.builtin.template:
+        src: mariadb-backup.service.j2
+        dest: "/etc/systemd/system/{{ mariadb_backup_service_name }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart the MariaDB backup timer
+
+    - name: Install the MariaDB backup timer
+      ansible.builtin.template:
+        src: mariadb-backup.timer.j2
+        dest: "/etc/systemd/system/{{ mariadb_backup_timer_name }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart the MariaDB backup timer
+
+    - name: Enable and start the MariaDB backup timer
+      ansible.builtin.systemd_service:
+        name: "{{ mariadb_backup_timer_name }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+- name: Remove local MariaDB backups when disabled
+  when: not (mariadb_backup_enabled | bool)
+  block:
+    - name: Inspect existing MariaDB backup units
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ mariadb_backup_script_path }}"
+        - "/etc/systemd/system/{{ mariadb_backup_service_name }}"
+        - "/etc/systemd/system/{{ mariadb_backup_timer_name }}"
+      register: mariadb_backup_existing
+
+    - name: Remove existing MariaDB backup units
+      when: mariadb_backup_existing.results | selectattr('stat.exists') | list | length > 0
+      block:
+        - name: Stop and disable the MariaDB backup timer
+          ansible.builtin.systemd_service:
+            name: "{{ mariadb_backup_timer_name }}"
+            enabled: false
+            state: stopped
+          when: mariadb_backup_existing.results[2].stat.exists
+
+        - name: Remove MariaDB backup files
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ mariadb_backup_script_path }}"
+            - "/etc/systemd/system/{{ mariadb_backup_service_name }}"
+            - "/etc/systemd/system/{{ mariadb_backup_timer_name }}"
+
+        - name: Reload systemd after removing MariaDB backup units
+          ansible.builtin.systemd_service:
+            daemon_reload: true

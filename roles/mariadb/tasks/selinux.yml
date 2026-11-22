@@ -1,0 +1,47 @@
+---
+- name: Read the SELinux mode
+  ansible.builtin.command:
+    argv:
+      - getenforce
+  register: mariadb_selinux_mode
+  changed_when: false
+  check_mode: false
+  when: not ansible_check_mode
+
+- name: Apply the MariaDB SELinux policy
+  when:
+    - not ansible_check_mode
+    - mariadb_selinux_mode.stdout | default('Disabled') in ['Enforcing', 'Permissive']
+  block:
+    - name: List installed SELinux modules
+      ansible.builtin.command:
+        argv:
+          - semodule
+          - -l
+      register: mariadb_selinux_modules
+      changed_when: false
+
+    - name: Install the vendor MariaDB SELinux policy
+      ansible.builtin.command:
+        argv:
+          - semodule
+          - -i
+          - /usr/share/mariadb/policy/selinux/mariadb.pp
+      when: "'mariadb-server' not in mariadb_selinux_modules.stdout"
+      changed_when: true
+
+    - name: Apply MariaDB file contexts
+      ansible.builtin.command:
+        argv:
+          - restorecon
+          - -R
+          - "{{ mariadb_datadir }}"
+      changed_when: false
+
+    - name: Label a non-default MariaDB port
+      community.general.seport:
+        ports: "{{ mariadb_port }}"
+        proto: tcp
+        setype: mysqld_port_t
+        state: present
+      when: mariadb_port | int != 3306
