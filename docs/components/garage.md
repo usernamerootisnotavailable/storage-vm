@@ -8,7 +8,7 @@ The `garage` role installs a pinned static Garage binary, configures a single-no
 
 - AlmaLinux 10 x86_64
 - Garage 2.5.0
-- Binary: `https://garagehq.deuxfleurs.fr/_releases/2.5.0/x86_64-unknown-linux-musl/garage`
+- Binary: `https://garagehq.deuxfleurs.fr/_releases/v2.5.0/x86_64-unknown-linux-musl/garage`
 - SHA256: `2ff667286217cd73ebcb1c03af993822365000441dfe31a80cb64c5189a9dea8`
 
 ## Layout

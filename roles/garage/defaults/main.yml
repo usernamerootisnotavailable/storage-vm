@@ -2,7 +2,7 @@
 # garage_version and garage_binary_checksum are required and pinned in
 # inventory versions.yml.
 garage_binary_url: >-
-  https://garagehq.deuxfleurs.fr/_releases/{{ garage_version }}/x86_64-unknown-linux-musl/garage
+  https://garagehq.deuxfleurs.fr/_releases/v{{ garage_version }}/x86_64-unknown-linux-musl/garage
 garage_bin: /usr/local/bin/garage
 garage_config_path: /etc/garage.toml
 garage_user: garage

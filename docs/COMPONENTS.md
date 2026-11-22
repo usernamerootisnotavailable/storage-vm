@@ -10,7 +10,7 @@ Checked against vendor repositories and tested where noted. Reverify before chan
 |---|---|---|---|---|
 | PostgreSQL | PGDG `https://download.postgresql.org/pub/repos/yum/18/redhat/rhel-10-x86_64/` | 18.7 (`1PGDG.rhel10.3`) | Verified | Implemented |
 | MariaDB | `https://mirror.mariadb.org/yum/11.8/rhel/10/x86_64/` | 11.8.10 (`1.el10`) | Verified | Implemented |
-| Garage | `https://garagehq.deuxfleurs.fr/_releases/2.5.0/x86_64-unknown-linux-musl/garage` | 2.5.0 | Static musl binary | Implemented |
+| Garage | `https://garagehq.deuxfleurs.fr/_releases/v2.5.0/x86_64-unknown-linux-musl/garage` | 2.5.0 | Static musl binary | Implemented |
 | Elasticsearch | `https://artifacts.elastic.co/packages/9.x/yum/` | 9.5.6 | Verified | Implemented |
 | NGINX | AlmaLinux AppStream | 1.26.3 | Verified | Implemented |
 | Certbot | PyPI virtualenv | 5.10.0 | Python >=3.10 | Implemented |
