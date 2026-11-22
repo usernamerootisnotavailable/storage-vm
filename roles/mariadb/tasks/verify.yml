@@ -29,7 +29,7 @@
     ca_cert: "{{ mariadb_tls_ca_path }}"
     query: >-
       SELECT DATABASE() AS database_name,
-             CURRENT_USER() AS current_user,
+             CURRENT_USER() AS current_user_name,
              (SELECT VARIABLE_VALUE
               FROM information_schema.SESSION_STATUS
               WHERE VARIABLE_NAME = 'Ssl_cipher') AS ssl_cipher
@@ -42,7 +42,7 @@
   ansible.builtin.assert:
     that:
       - mariadb_app_check.query_result[0][0].database_name == mariadb_app_database
-      - mariadb_app_check.query_result[0][0].current_user is search('^' ~ mariadb_app_user ~ '@')
+      - mariadb_app_check.query_result[0][0].current_user_name is search('^' ~ mariadb_app_user ~ '@')
       - mariadb_app_check.query_result[0][0].ssl_cipher | default('') | length > 0
     fail_msg: The application connection did not use the expected database, user, or TLS.
     quiet: true
