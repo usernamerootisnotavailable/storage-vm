@@ -1,0 +1,90 @@
+---
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Verify Elasticsearch is running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services.get(elasticsearch_service_name ~ '.service', {}).get('state', '') == 'running'
+    fail_msg: Elasticsearch is not running.
+    quiet: true
+
+- name: Verify Elasticsearch security
+  when: not ansible_check_mode
+  block:
+    - name: Read the authenticated cluster health
+      ansible.builtin.uri:
+        url: >-
+          https://127.0.0.1:{{ elasticsearch_http_port }}/_cluster/health
+        ca_cert: "{{ elasticsearch_tls_ca_path }}"
+        user: elastic
+        password: "{{ elasticsearch_bootstrap_password }}"
+        force_basic_auth: true
+        status_code: [200]
+        return_content: true
+      register: elasticsearch_health_check
+      changed_when: false
+      no_log: true
+
+    - name: Assert the cluster is healthy
+      ansible.builtin.assert:
+        that:
+          - elasticsearch_health_check.json.status in ['green', 'yellow']
+          - elasticsearch_health_check.json.number_of_nodes | int >= 1
+        fail_msg: Elasticsearch cluster health is not green or yellow.
+        quiet: true
+
+    - name: Verify unauthenticated access is rejected
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ elasticsearch_http_port }}/"
+        ca_cert: "{{ elasticsearch_tls_ca_path }}"
+        status_code: [401]
+      changed_when: false
+      no_log: true
+
+    - name: Verify the Garage snapshot repository
+      ansible.builtin.uri:
+        url: >-
+          https://127.0.0.1:{{ elasticsearch_http_port }}/_snapshot/{{ elasticsearch_snapshot_repo_name }}/_verify
+        method: POST
+        ca_cert: "{{ elasticsearch_tls_ca_path }}"
+        user: elastic
+        password: "{{ elasticsearch_bootstrap_password }}"
+        force_basic_auth: true
+        status_code: [200]
+        return_content: true
+      changed_when: false
+      no_log: true
+      when: elasticsearch_snapshot_repo_enabled | bool
+
+- name: Verify the TLS files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ elasticsearch_tls_ca_path }}"
+    - "{{ elasticsearch_tls_cert_path }}"
+    - "{{ elasticsearch_tls_key_path }}"
+  register: elasticsearch_tls_check
+
+- name: Assert the TLS files are present
+  ansible.builtin.assert:
+    that:
+      - elasticsearch_tls_check.results[0].stat.exists
+      - elasticsearch_tls_check.results[1].stat.exists
+      - elasticsearch_tls_check.results[2].stat.exists
+      - elasticsearch_tls_check.results[2].stat.mode | default('') in ['0600', '0640']
+    fail_msg: Elasticsearch TLS files are missing or the private key permissions are unsafe.
+    quiet: true
+
+- name: Verify the JVM heap options
+  ansible.builtin.stat:
+    path: "{{ elasticsearch_jvm_options_file }}"
+  register: elasticsearch_heap_file
+
+- name: Assert the JVM heap options are present
+  ansible.builtin.assert:
+    that:
+      - elasticsearch_heap_file.stat.exists
+      - elasticsearch_heap_file.stat.mode | default('') == '0640'
+    fail_msg: The Elasticsearch JVM heap file is missing or has the wrong mode.
+    quiet: true

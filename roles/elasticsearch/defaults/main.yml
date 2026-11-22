@@ -1,0 +1,49 @@
+---
+# elasticsearch_version is required and pinned in inventory versions.yml.
+elasticsearch_cluster_name: storage-host
+elasticsearch_node_name: "{{ inventory_hostname }}"
+elasticsearch_http_port: 9200
+elasticsearch_transport_port: 9300
+elasticsearch_network_host: "127.0.0.1"
+elasticsearch_allowed_cidrs: []
+elasticsearch_manage_firewall: "{{ common_firewall_enabled | default(true) }}"
+elasticsearch_firewall_zone: "{{ common_firewall_zone | default('public') }}"
+elasticsearch_manage_sysctl: true
+elasticsearch_heap_size: "1g"
+
+elasticsearch_config_dir: /etc/elasticsearch
+elasticsearch_config_file: /etc/elasticsearch/elasticsearch.yml
+elasticsearch_jvm_options_file: /etc/elasticsearch/jvm.options.d/heap.options
+elasticsearch_data_dir: /var/lib/elasticsearch
+elasticsearch_log_dir: /var/log/elasticsearch
+elasticsearch_certs_dir: /etc/elasticsearch/certs
+elasticsearch_service_name: elasticsearch
+
+elasticsearch_repo_name: elasticsearch-9.x
+elasticsearch_repo_baseurl: "https://artifacts.elastic.co/packages/9.x/yum"
+elasticsearch_gpgkey_url: "https://artifacts.elastic.co/GPG-KEY-elasticsearch"
+elasticsearch_gpgkey_checksum: "sha256:db52809c5f6b27f9c2bed45cb43e398c659275f3d35305653c6750a0db90f5eb"
+elasticsearch_gpgkey_path: /etc/pki/rpm-gpg/GPG-KEY-elasticsearch
+elasticsearch_package: "elasticsearch-{{ elasticsearch_version }}"
+
+elasticsearch_tls_mode: generated
+elasticsearch_tls_ca_path: "{{ elasticsearch_certs_dir }}/ca.crt"
+elasticsearch_tls_cert_path: "{{ elasticsearch_certs_dir }}/http.crt"
+elasticsearch_tls_key_path: "{{ elasticsearch_certs_dir }}/http.key"
+elasticsearch_tls_common_name: "{{ inventory_hostname }}"
+elasticsearch_tls_sans:
+  - "DNS:{{ inventory_hostname }}"
+  - "DNS:localhost"
+  - "IP:127.0.0.1"
+elasticsearch_tls_key_size: 2048
+elasticsearch_tls_cert_validity_days: 825
+elasticsearch_tls_ca_validity_days: 3650
+
+elasticsearch_snapshot_repo_enabled: true
+elasticsearch_snapshot_repo_name: garage
+elasticsearch_snapshot_bucket: "{{ storage_s3_bucket | default('elasticsearch-snapshots') }}"
+elasticsearch_s3_endpoint: "{{ storage_s3_endpoint | default('http://127.0.0.1:3900') }}"
+elasticsearch_s3_region: "{{ storage_s3_region | default('garage') }}"
+elasticsearch_s3_access_key: "{{ storage_s3_access_key | default('') }}"
+elasticsearch_s3_secret_key: "{{ storage_s3_secret_key | default('') }}"
+elasticsearch_rotate_s3_secrets: false

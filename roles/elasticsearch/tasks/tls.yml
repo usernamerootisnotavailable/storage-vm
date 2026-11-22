@@ -1,0 +1,112 @@
+---
+- name: Ensure the TLS directory exists
+  ansible.builtin.file:
+    path: "{{ elasticsearch_certs_dir }}"
+    state: directory
+    owner: root
+    group: elasticsearch
+    mode: "0750"
+
+- name: Configure generated TLS material
+  when: elasticsearch_tls_mode == 'generated'
+  block:
+    - name: Generate the Elasticsearch CA private key
+      community.crypto.openssl_privatekey:
+        path: "{{ elasticsearch_certs_dir }}/ca.key"
+        type: RSA
+        size: "{{ elasticsearch_tls_key_size }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Generate the Elasticsearch CA certificate signing request
+      community.crypto.openssl_csr:
+        path: "{{ elasticsearch_certs_dir }}/ca.csr"
+        privatekey_path: "{{ elasticsearch_certs_dir }}/ca.key"
+        common_name: "{{ elasticsearch_tls_common_name }}-ca"
+        basic_constraints:
+          - "CA:TRUE"
+        basic_constraints_critical: true
+        key_usage:
+          - keyCertSign
+          - cRLSign
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Generate the Elasticsearch CA certificate
+      community.crypto.x509_certificate:
+        path: "{{ elasticsearch_tls_ca_path }}"
+        csr_path: "{{ elasticsearch_certs_dir }}/ca.csr"
+        privatekey_path: "{{ elasticsearch_certs_dir }}/ca.key"
+        provider: selfsigned
+        selfsigned_not_after: "+{{ elasticsearch_tls_ca_validity_days }}d"
+        owner: root
+        group: elasticsearch
+        mode: "0644"
+
+    - name: Generate the Elasticsearch server private key
+      community.crypto.openssl_privatekey:
+        path: "{{ elasticsearch_tls_key_path }}"
+        type: RSA
+        size: "{{ elasticsearch_tls_key_size }}"
+        owner: elasticsearch
+        group: elasticsearch
+        mode: "0600"
+      notify: Restart elasticsearch
+
+    - name: Generate the Elasticsearch server certificate signing request
+      community.crypto.openssl_csr:
+        path: "{{ elasticsearch_certs_dir }}/http.csr"
+        privatekey_path: "{{ elasticsearch_tls_key_path }}"
+        common_name: "{{ elasticsearch_tls_common_name }}"
+        subject_alt_name: "{{ elasticsearch_tls_sans }}"
+        key_usage:
+          - digitalSignature
+          - keyEncipherment
+        extended_key_usage:
+          - serverAuth
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Generate the Elasticsearch server certificate
+      community.crypto.x509_certificate:
+        path: "{{ elasticsearch_tls_cert_path }}"
+        csr_path: "{{ elasticsearch_certs_dir }}/http.csr"
+        privatekey_path: "{{ elasticsearch_tls_key_path }}"
+        provider: ownca
+        ownca_path: "{{ elasticsearch_tls_ca_path }}"
+        ownca_privatekey_path: "{{ elasticsearch_certs_dir }}/ca.key"
+        ownca_not_after: "+{{ elasticsearch_tls_cert_validity_days }}d"
+        owner: root
+        group: elasticsearch
+        mode: "0644"
+      notify: Restart elasticsearch
+
+- name: Validate provided TLS material
+  when: elasticsearch_tls_mode == 'provided'
+  block:
+    - name: Inspect the provided TLS files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ elasticsearch_tls_ca_path }}"
+        - "{{ elasticsearch_tls_cert_path }}"
+        - "{{ elasticsearch_tls_key_path }}"
+      register: elasticsearch_tls_provided
+
+    - name: Require provided TLS files with safe ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - elasticsearch_tls_provided.results[0].stat.exists
+          - elasticsearch_tls_provided.results[1].stat.exists
+          - elasticsearch_tls_provided.results[2].stat.exists
+          - elasticsearch_tls_provided.results[0].stat.gr_name | default('') == 'elasticsearch'
+          - elasticsearch_tls_provided.results[1].stat.gr_name | default('') == 'elasticsearch'
+          - elasticsearch_tls_provided.results[2].stat.pw_name | default('') == 'elasticsearch'
+          - elasticsearch_tls_provided.results[2].stat.mode | default('') in ['0600', '0640']
+        fail_msg: >-
+          Provided TLS files must exist, be readable by elasticsearch, and the
+          private key must be owned by elasticsearch with mode 0600 or 0640.
+        quiet: true

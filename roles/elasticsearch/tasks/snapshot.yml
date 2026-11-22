@@ -1,0 +1,64 @@
+---
+- name: Configure the Garage snapshot repository
+  when:
+    - elasticsearch_snapshot_repo_enabled | bool
+    - not ansible_check_mode
+  block:
+    - name: Read the current snapshot repository
+      ansible.builtin.uri:
+        url: >-
+          https://127.0.0.1:{{ elasticsearch_http_port }}/_snapshot/{{ elasticsearch_snapshot_repo_name }}
+        ca_cert: "{{ elasticsearch_tls_ca_path }}"
+        user: elastic
+        password: "{{ elasticsearch_bootstrap_password }}"
+        force_basic_auth: true
+        status_code: [200, 404]
+        return_content: true
+      register: elasticsearch_snapshot_repo
+      changed_when: false
+      no_log: true
+
+    - name: Record the current snapshot repository settings
+      ansible.builtin.set_fact:
+        elasticsearch_snapshot_repo_settings: >-
+          {{ (elasticsearch_snapshot_repo.json | default({}))
+             .get(elasticsearch_snapshot_repo_name, {})
+             .get('settings', {}) }}
+      when: elasticsearch_snapshot_repo.status == 200
+
+    - name: Register the Garage snapshot repository
+      ansible.builtin.uri:
+        url: >-
+          https://127.0.0.1:{{ elasticsearch_http_port }}/_snapshot/{{ elasticsearch_snapshot_repo_name }}
+        method: PUT
+        ca_cert: "{{ elasticsearch_tls_ca_path }}"
+        user: elastic
+        password: "{{ elasticsearch_bootstrap_password }}"
+        force_basic_auth: true
+        body_format: json
+        body:
+          type: s3
+          settings:
+            bucket: "{{ elasticsearch_snapshot_bucket }}"
+        status_code: [200]
+        return_content: true
+      changed_when: true
+      no_log: true
+      when: >-
+        elasticsearch_snapshot_repo.status == 404 or
+        (elasticsearch_snapshot_repo_settings | default({})).bucket
+        | default('') != elasticsearch_snapshot_bucket
+
+    - name: Verify the Garage snapshot repository
+      ansible.builtin.uri:
+        url: >-
+          https://127.0.0.1:{{ elasticsearch_http_port }}/_snapshot/{{ elasticsearch_snapshot_repo_name }}/_verify
+        method: POST
+        ca_cert: "{{ elasticsearch_tls_ca_path }}"
+        user: elastic
+        password: "{{ elasticsearch_bootstrap_password }}"
+        force_basic_auth: true
+        status_code: [200]
+        return_content: true
+      changed_when: false
+      no_log: true

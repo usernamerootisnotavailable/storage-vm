@@ -1,0 +1,30 @@
+---
+- name: Validate the Elasticsearch configuration
+  ansible.builtin.import_tasks: assert.yml
+
+- name: Configure the host kernel
+  ansible.builtin.import_tasks: sysctl.yml
+
+- name: Install Elasticsearch
+  ansible.builtin.import_tasks: install.yml
+
+- name: Configure TLS
+  ansible.builtin.import_tasks: tls.yml
+
+- name: Configure Elasticsearch
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Configure secure settings
+  ansible.builtin.import_tasks: keystore.yml
+
+- name: Start Elasticsearch
+  ansible.builtin.import_tasks: service.yml
+
+- name: Configure the firewall
+  ansible.builtin.import_tasks: firewall.yml
+
+- name: Configure the snapshot repository
+  ansible.builtin.import_tasks: snapshot.yml
+
+- name: Verify Elasticsearch
+  ansible.builtin.import_tasks: verify.yml

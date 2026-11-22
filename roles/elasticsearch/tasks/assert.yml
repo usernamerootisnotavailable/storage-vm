@@ -1,0 +1,75 @@
+---
+- name: Verify the supported platform
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "AlmaLinux"
+      - ansible_distribution_major_version | int == 10
+    fail_msg: Only AlmaLinux 10 is supported.
+    quiet: true
+
+- name: Validate the Elasticsearch version
+  ansible.builtin.assert:
+    that:
+      - elasticsearch_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+    fail_msg: elasticsearch_version must be a full version such as "9.5.6".
+    quiet: true
+
+- name: Validate the JVM heap size
+  ansible.builtin.assert:
+    that:
+      - elasticsearch_heap_size is match('^[1-9][0-9]*[mg]$')
+    fail_msg: elasticsearch_heap_size must look like 512m or 2g.
+    quiet: true
+
+- name: Require a non-trivial bootstrap password
+  ansible.builtin.assert:
+    that:
+      - elasticsearch_bootstrap_password is defined
+      - elasticsearch_bootstrap_password | length >= 16
+    fail_msg: Set elasticsearch_bootstrap_password from SOPS to at least 16 characters.
+    quiet: true
+  no_log: true
+
+- name: Validate the listener
+  ansible.builtin.assert:
+    that:
+      - elasticsearch_network_host in ['127.0.0.1', '0.0.0.0']
+    fail_msg: elasticsearch_network_host must be 127.0.0.1 or 0.0.0.0.
+    quiet: true
+
+- name: Require firewall rules when listening on every interface
+  ansible.builtin.assert:
+    that:
+      - >-
+        elasticsearch_network_host != '0.0.0.0' or
+        not (elasticsearch_manage_firewall | bool) or
+        elasticsearch_allowed_cidrs | length > 0
+    fail_msg: >-
+      Set elasticsearch_allowed_cidrs when Elasticsearch listens on every
+      interface and firewalld is managed.
+    quiet: true
+
+- name: Require TLS material inside the Elasticsearch configuration directory
+  ansible.builtin.assert:
+    that:
+      - elasticsearch_tls_ca_path is match('^' ~ elasticsearch_config_dir ~ '(/|$)')
+      - elasticsearch_tls_cert_path is match('^' ~ elasticsearch_config_dir ~ '(/|$)')
+      - elasticsearch_tls_key_path is match('^' ~ elasticsearch_config_dir ~ '(/|$)')
+    fail_msg: >-
+      Elasticsearch 9 blocks SSL file reads outside ES_PATH_CONF. Keep the CA,
+      certificate, and key under {{ elasticsearch_config_dir }}.
+    quiet: true
+
+- name: Validate the snapshot repository configuration
+  ansible.builtin.assert:
+    that:
+      - elasticsearch_snapshot_bucket | length > 0
+      - elasticsearch_s3_endpoint is match('^https?://')
+      - elasticsearch_s3_access_key is match('^[0-9a-f]{16}$')
+      - elasticsearch_s3_secret_key is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      Provide a bucket, an HTTP(S) S3 endpoint, a 16-hex access key, and a
+      64-hex secret key when the snapshot repository is enabled.
+    quiet: true
+  no_log: true
+  when: elasticsearch_snapshot_repo_enabled | bool

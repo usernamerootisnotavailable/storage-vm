@@ -1,0 +1,16 @@
+---
+galaxy_info:
+  namespace: storage_host
+  role_name: elasticsearch
+  author: Storage Host Maintainers
+  description: Elasticsearch 9 single-node search service
+  license: MIT
+  min_ansible_version: "2.22"
+  platforms:
+    - name: AlmaLinux
+      versions:
+        - "10"
+  galaxy_tags:
+    - search
+    - elasticsearch
+dependencies: []

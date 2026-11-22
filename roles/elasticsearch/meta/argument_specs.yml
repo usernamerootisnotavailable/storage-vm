@@ -1,0 +1,144 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a single-node Elasticsearch 9
+    description:
+      - Installs Elasticsearch from the 9.x repository, configures TLS and
+        security, sets the bootstrap password and Garage S3 credentials, and
+        registers the snapshot repository.
+    options:
+      elasticsearch_version:
+        type: str
+        required: true
+        description: Elasticsearch version, pinned in inventory.
+      elasticsearch_cluster_name:
+        type: str
+        description: Cluster name.
+      elasticsearch_node_name:
+        type: str
+        description: Node name.
+      elasticsearch_http_port:
+        type: int
+        description: HTTP port.
+      elasticsearch_transport_port:
+        type: int
+        description: Transport port.
+      elasticsearch_network_host:
+        type: str
+        description: Bind address; 127.0.0.1 or 0.0.0.0.
+      elasticsearch_allowed_cidrs:
+        type: list
+        elements: str
+        description: Source CIDRs allowed through firewalld.
+      elasticsearch_manage_firewall:
+        type: bool
+        description: Manage firewalld rules when client CIDRs are set.
+      elasticsearch_firewall_zone:
+        type: str
+        description: firewalld zone.
+      elasticsearch_manage_sysctl:
+        type: bool
+        description: Set vm.max_map_count on the host.
+      elasticsearch_heap_size:
+        type: str
+        description: JVM heap size, such as 512m or 2g.
+      elasticsearch_config_dir:
+        type: str
+        description: Configuration directory.
+      elasticsearch_config_file:
+        type: str
+        description: Configuration file.
+      elasticsearch_jvm_options_file:
+        type: str
+        description: JVM heap options file.
+      elasticsearch_data_dir:
+        type: str
+        description: Data directory.
+      elasticsearch_log_dir:
+        type: str
+        description: Log directory.
+      elasticsearch_certs_dir:
+        type: str
+        description: TLS directory.
+      elasticsearch_service_name:
+        type: str
+        description: systemd service name.
+      elasticsearch_repo_name:
+        type: str
+        description: Repository name.
+      elasticsearch_repo_baseurl:
+        type: str
+        description: Elastic repository base URL.
+      elasticsearch_gpgkey_url:
+        type: str
+        description: Elastic signing key URL.
+      elasticsearch_gpgkey_checksum:
+        type: str
+        description: SHA256 checksum of the signing key.
+      elasticsearch_gpgkey_path:
+        type: str
+        description: Local signing key path.
+      elasticsearch_package:
+        type: str
+        description: Package specification.
+      elasticsearch_tls_mode:
+        type: str
+        choices:
+          - generated
+          - provided
+        description: Generate a private CA and certificate, or use provided files.
+      elasticsearch_tls_ca_path:
+        type: str
+        description: CA certificate path.
+      elasticsearch_tls_cert_path:
+        type: str
+        description: Server certificate path.
+      elasticsearch_tls_key_path:
+        type: str
+        description: Server private key path.
+      elasticsearch_tls_common_name:
+        type: str
+        description: Generated certificate common name.
+      elasticsearch_tls_sans:
+        type: list
+        elements: str
+        description: Generated certificate subject alternative names.
+      elasticsearch_tls_key_size:
+        type: int
+        description: Generated RSA key size.
+      elasticsearch_tls_cert_validity_days:
+        type: int
+        description: Generated server certificate validity.
+      elasticsearch_tls_ca_validity_days:
+        type: int
+        description: Generated CA validity.
+      elasticsearch_bootstrap_password:
+        type: str
+        required: true
+        no_log: true
+        description: Bootstrap password for the elastic user.
+      elasticsearch_snapshot_repo_enabled:
+        type: bool
+        description: Register the Garage snapshot repository.
+      elasticsearch_snapshot_repo_name:
+        type: str
+        description: Snapshot repository name.
+      elasticsearch_snapshot_bucket:
+        type: str
+        description: Snapshot bucket.
+      elasticsearch_s3_endpoint:
+        type: str
+        description: S3 endpoint URL.
+      elasticsearch_s3_region:
+        type: str
+        description: S3 region.
+      elasticsearch_s3_access_key:
+        type: str
+        description: S3 access key.
+      elasticsearch_s3_secret_key:
+        type: str
+        no_log: true
+        description: S3 secret key.
+      elasticsearch_rotate_s3_secrets:
+        type: bool
+        description: Rewrite existing S3 credentials in the Elasticsearch keystore.

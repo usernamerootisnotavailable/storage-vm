@@ -1,0 +1,35 @@
+---
+- name: Enable and start Elasticsearch
+  ansible.builtin.systemd_service:
+    name: "{{ elasticsearch_service_name }}"
+    enabled: true
+    state: started
+
+- name: Apply pending Elasticsearch restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the Elasticsearch HTTPS port
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ elasticsearch_http_port }}"
+    delay: 5
+    timeout: 300
+  when: not ansible_check_mode
+
+- name: Wait for Elasticsearch to become healthy
+  ansible.builtin.uri:
+    url: >-
+      https://127.0.0.1:{{ elasticsearch_http_port }}/_cluster/health?wait_for_status=yellow&timeout=30s
+    ca_cert: "{{ elasticsearch_tls_ca_path }}"
+    user: elastic
+    password: "{{ elasticsearch_bootstrap_password }}"
+    force_basic_auth: true
+    status_code: [200]
+    return_content: true
+  register: elasticsearch_health
+  until: elasticsearch_health.status == 200
+  retries: 60
+  delay: 5
+  changed_when: false
+  no_log: true
+  when: not ansible_check_mode

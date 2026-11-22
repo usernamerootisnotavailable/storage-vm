@@ -1,0 +1,48 @@
+---
+- name: Download the Elastic signing key
+  ansible.builtin.get_url:
+    url: "{{ elasticsearch_gpgkey_url }}"
+    dest: "{{ elasticsearch_gpgkey_path }}"
+    checksum: "{{ elasticsearch_gpgkey_checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Import the Elastic signing key
+  ansible.builtin.rpm_key:
+    key: "{{ elasticsearch_gpgkey_path }}"
+    state: present
+
+- name: Configure the Elastic repository
+  ansible.builtin.yum_repository:
+    name: "{{ elasticsearch_repo_name }}"
+    description: Elasticsearch 9.x for AlmaLinux 10
+    baseurl: "{{ elasticsearch_repo_baseurl }}"
+    gpgcheck: true
+    gpgkey: "file://{{ elasticsearch_gpgkey_path }}"
+    enabled: true
+    module_hotfixes: true
+
+- name: Install Elasticsearch
+  ansible.builtin.dnf:
+    name: "{{ elasticsearch_package }}"
+    state: present
+
+- name: Ensure the Elasticsearch data and log directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: elasticsearch
+    group: elasticsearch
+    mode: "0750"
+  loop:
+    - "{{ elasticsearch_data_dir }}"
+    - "{{ elasticsearch_log_dir }}"
+
+- name: Ensure the JVM options directory exists
+  ansible.builtin.file:
+    path: "{{ elasticsearch_config_dir }}/jvm.options.d"
+    state: directory
+    owner: root
+    group: elasticsearch
+    mode: "0750"
