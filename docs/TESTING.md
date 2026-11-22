@@ -1,0 +1,170 @@
+# Testing
+
+## Test layers
+
+| Layer | Tool | What it proves |
+|---|---|---|
+| Formatting | `yamllint` | YAML is valid and consistently formatted |
+| Static analysis | `ansible-lint` production profile | Ansible best practices and common failure modes |
+| Policy | `scripts/check-policy.sh` | No environment branching, unpinned versions, plaintext keys, or missing role contracts |
+| Syntax | `ansible-playbook --syntax-check` | Playbooks, roles, modules, and inventory parse |
+| Role behavior | Molecule with Docker | Converge, service health, idempotence |
+| Full stack | `site.yml` on the dev container | Roles compose correctly on one AlmaLinux 10 host |
+| Security | `gitleaks`, policy checks | No plaintext credentials or age identities |
+| Real host | Manual smoke test | SELinux, firewalld, block devices, SSH hardening |
+
+CI is the authoritative test environment. A local pass is necessary but not sufficient.
+
+## Commands
+
+```bash
+make lint          # yamllint, ansible-lint, policy checks
+make syntax        # syntax-check every playbook
+make test-image    # build the AlmaLinux 10 systemd test image
+make molecule      # Molecule for common and postgresql
+make integration   # full site.yml on the dev container, twice
+make test          # lint + syntax + molecule
+```
+
+Run from the repository root unless a target says otherwise. `ansible.cfg` and `ANSIBLE_COLLECTIONS_PATH` make the pinned collections available from role directories.
+
+## AlmaLinux 10 test image
+
+`docker/dev/` builds a systemd-enabled AlmaLinux 10 image with:
+
+- `systemd` as PID 1
+- Python 3 for Ansible
+- `sudo` and an `ansible` automation user
+- `openssh-server` for the persistent development container
+- No service packages; roles install them
+
+The image is tagged `storage-host/almalinux10-ansible:10`. Never use `latest`.
+
+Local build:
+
+```bash
+make test-image
+```
+
+The image is used by both Molecule and the persistent development container.
+
+### Docker prerequisites
+
+- Docker daemon reachable by the current user
+- Privileged containers and cgroup namespace support
+- `vm.max_map_count=262144` on the Docker host once Elasticsearch is added
+- At least 4 GB of memory for the full stack
+
+On Linux:
+
+```bash
+sudo sysctl -w vm.max_map_count=262144
+```
+
+## Molecule
+
+Each implemented role has `molecule/default/` with:
+
+- `molecule.yml` — Docker driver, pinned image, privileged systemd settings
+- `prepare.yml` — verifies AlmaLinux 10
+- `converge.yml` — applies `common` and the role
+- `verify.yml` — asserts observable behavior
+
+Molecule's `test` sequence includes idempotence: it runs converge a second time and fails if anything changes.
+
+The scenarios disable only container-incompatible capabilities:
+
+```yaml
+common_manage_time: false
+common_firewall_enabled: false
+common_require_selinux: false
+postgresql_manage_firewall: false
+```
+
+SELinux tasks detect `getenforce` and skip when the container reports `Disabled`. This branch is not exercised in CI.
+
+Test secrets are generated at runtime with the `password` lookup and stored outside the repository:
+
+```yaml
+postgresql_app_password: >-
+  {{ lookup('password', '/tmp/storage-host-molecule-postgresql length=32 chars=ascii_letters,digits') }}
+```
+
+The same file is reused by converge and verify. It is never committed.
+
+## Full-stack integration
+
+The integration target starts the development container, generates an ephemeral test password, applies `site.yml`, runs verification, applies again, and asserts `changed=0`.
+
+```bash
+make integration
+```
+
+The integration job must not use production secrets. If SOPS files exist, the job either uses a development key supplied by the repository environment or an ephemeral test inventory overlay.
+
+## GitHub Actions
+
+`.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
+
+1. **lint** — `yamllint`, `ansible-lint`, policy checks, syntax check
+2. **secret-scan** — `gitleaks` with a pinned binary
+3. **molecule** — matrix over `common` and `postgresql`
+4. **integration** — full `site.yml` on the AlmaLinux 10 container
+
+Requirements:
+
+- Actions are pinned by commit SHA.
+- Tool versions come from `requirements-dev.txt`.
+- Collections come from `requirements.yml`.
+- Pull requests from forks do not receive environment secrets.
+- CI must not print decrypted variables.
+- A failing security check blocks merge.
+
+Branch protection must require the lint, secret-scan, molecule, and integration checks.
+
+## Check mode
+
+- Every task must be safe in check mode or explicitly documented.
+- Read-only commands may use `check_mode: false` so they can gather facts during a check run.
+- Mutating commands must never use `check_mode: false`.
+- Check mode is meaningful on a host that has been converged once. On a blank host, package installation and directory creation are simulated, so the first apply must establish baseline state.
+- `--check --diff` is used for drift detection on development and as a pre-apply review on production.
+
+## Idempotence
+
+The second convergence must report `changed=0`. Common causes of non-idempotence:
+
+- Password modules that rewrite credentials on every run
+- `command`/`shell` tasks without `creates` or `changed_when`
+- Templates with timestamps or random data
+- Repository or GPG key tasks that re-download every time
+- Handlers notified unconditionally
+
+Do not hide a change with `changed_when: false` unless the task is genuinely read-only.
+
+## Known gaps
+
+Docker cannot validate:
+
+- SELinux enforcing behavior and file contexts
+- nftables/firewalld behavior against a real network
+- Real disk layout, I/O, or filesystem tuning
+- SSH access from an external network
+
+Before a production change that touches these areas:
+
+1. Apply the change to a real AlmaLinux 10 host in a non-production environment.
+2. Verify SELinux denials with `ausearch -m avc -ts recent`.
+3. Verify firewall rules from an allowed and a denied source.
+4. Verify SSH access with the intended automation and admin users.
+5. Record the verification in the pull request.
+
+## Definition of done
+
+- `make lint` passes.
+- `make syntax` passes.
+- The affected role's Molecule scenario passes.
+- Integration passes for changes to `site.yml` or inventory.
+- The second run reports `changed=0`.
+- `gitleaks` passes.
+- No real-host-only gap is left unverified without a documented plan.
