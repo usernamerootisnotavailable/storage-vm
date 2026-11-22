@@ -1,0 +1,16 @@
+---
+galaxy_info:
+  namespace: storage_host
+  role_name: postgresql
+  author: Storage Host Maintainers
+  description: PostgreSQL 18 for the storage host
+  license: MIT
+  min_ansible_version: "2.22"
+  platforms:
+    - name: AlmaLinux
+      versions:
+        - "10"
+  galaxy_tags:
+    - database
+    - postgresql
+dependencies: []

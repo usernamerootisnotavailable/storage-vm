@@ -1,0 +1,156 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure PostgreSQL 18
+    description:
+      - Installs PostgreSQL from PGDG, configures TLS and SCRAM authentication,
+        creates an application role and database, and installs a backup timer.
+    options:
+      postgresql_version:
+        type: str
+        required: true
+        description: PostgreSQL major version, pinned in inventory.
+      postgresql_port:
+        type: int
+        description: Listener port.
+      postgresql_listen_addresses:
+        type: str
+        description: Comma-separated listener addresses.
+      postgresql_allowed_cidrs:
+        type: list
+        elements: str
+        description: Source CIDRs allowed through firewalld.
+      postgresql_manage_firewall:
+        type: bool
+        description: Manage firewalld rules when client CIDRs are set.
+      postgresql_firewall_zone:
+        type: str
+        description: firewalld zone to manage.
+      postgresql_pgdg_baseurl:
+        type: str
+        description: PGDG repository base URL.
+      postgresql_pgdg_gpgkey:
+        type: str
+        description: PGDG signing key URL.
+      postgresql_pgdg_gpgkey_checksum:
+        type: str
+        description: SHA256 checksum of the PGDG signing key.
+      postgresql_pgdg_gpgkey_path:
+        type: str
+        description: Local path for the PGDG signing key.
+      postgresql_packages:
+        type: list
+        elements: str
+        description: Packages required by the role.
+      postgresql_data_dir:
+        type: str
+        description: PostgreSQL data directory.
+      postgresql_bin_dir:
+        type: str
+        description: PostgreSQL binary directory.
+      postgresql_service_name:
+        type: str
+        description: systemd service name.
+      postgresql_socket_dir:
+        type: str
+        description: Unix socket directory.
+      postgresql_app_user:
+        type: str
+        description: Application role name.
+      postgresql_app_database:
+        type: str
+        description: Application database name.
+      postgresql_app_password:
+        type: str
+        required: true
+        no_log: true
+        description: Application password, sourced from SOPS.
+      postgresql_rotate_passwords:
+        type: bool
+        description: Allow password changes on an existing role.
+      postgresql_max_connections:
+        type: int
+        description: Maximum connections.
+      postgresql_shared_buffers:
+        type: str
+        description: Shared buffer size.
+      postgresql_effective_cache_size:
+        type: str
+        description: Planner cache estimate.
+      postgresql_maintenance_work_mem:
+        type: str
+        description: Maintenance memory.
+      postgresql_work_mem:
+        type: str
+        description: Per-operation memory.
+      postgresql_wal_level:
+        type: str
+        description: WAL level.
+      postgresql_password_encryption:
+        type: str
+        description: Password hashing algorithm.
+      postgresql_log_min_duration_statement:
+        type: int
+        description: Slow query threshold in milliseconds.
+      postgresql_timezone:
+        type: str
+        description: Database timezone.
+      postgresql_extra_hba_entries:
+        type: list
+        elements: str
+        description: Additional raw pg_hba.conf lines.
+      postgresql_tls_enabled:
+        type: bool
+        description: Enable TLS.
+      postgresql_tls_mode:
+        type: str
+        choices:
+          - generated
+          - provided
+        description: Generate a self-signed certificate or use provided files.
+      postgresql_tls_dir:
+        type: str
+        description: TLS directory.
+      postgresql_tls_cert_path:
+        type: str
+        description: TLS certificate path.
+      postgresql_tls_key_path:
+        type: str
+        description: TLS private key path.
+      postgresql_tls_common_name:
+        type: str
+        description: Generated certificate common name.
+      postgresql_tls_sans:
+        type: list
+        elements: str
+        description: Generated certificate subject alternative names.
+      postgresql_tls_key_size:
+        type: int
+        description: Generated RSA key size.
+      postgresql_tls_cert_validity_days:
+        type: int
+        description: Generated certificate validity in days.
+      postgresql_tls_min_protocol:
+        type: str
+        description: Minimum TLS protocol version.
+      postgresql_backup_enabled:
+        type: bool
+        description: Install the local logical backup timer.
+      postgresql_backup_dir:
+        type: str
+        description: Local backup directory.
+      postgresql_backup_retention_days:
+        type: int
+        description: Local backup retention.
+      postgresql_backup_on_calendar:
+        type: str
+        description: systemd timer schedule.
+      postgresql_backup_script_path:
+        type: str
+        description: Backup script path.
+      postgresql_backup_service_name:
+        type: str
+        description: Backup service name.
+      postgresql_backup_timer_name:
+        type: str
+        description: Backup timer name.

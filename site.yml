@@ -1,0 +1,14 @@
+---
+# Full convergence for one AlmaLinux 10 storage host.
+# Run with an explicit inventory:
+#   ansible-playbook -i inventories/dev/hosts.yml site.yml
+- name: Apply the AlmaLinux 10 baseline
+  import_playbook: playbooks/common.yml
+
+# Future services are inserted here in dependency order:
+# MariaDB, Garage, Elasticsearch.
+- name: Configure PostgreSQL
+  import_playbook: playbooks/postgresql.yml
+
+- name: Verify the storage host
+  import_playbook: playbooks/verify.yml

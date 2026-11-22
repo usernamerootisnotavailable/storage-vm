@@ -1,0 +1,63 @@
+---
+- name: Download the PGDG signing key
+  ansible.builtin.get_url:
+    url: "{{ postgresql_pgdg_gpgkey }}"
+    dest: "{{ postgresql_pgdg_gpgkey_path }}"
+    checksum: "{{ postgresql_pgdg_gpgkey_checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Import the PGDG signing key
+  ansible.builtin.rpm_key:
+    key: "{{ postgresql_pgdg_gpgkey_path }}"
+    state: present
+
+- name: Configure the PGDG repository
+  ansible.builtin.yum_repository:
+    name: "pgdg{{ postgresql_version }}"
+    description: "PostgreSQL {{ postgresql_version }} for AlmaLinux 10"
+    baseurl: "{{ postgresql_pgdg_baseurl }}"
+    gpgcheck: true
+    gpgkey: "file://{{ postgresql_pgdg_gpgkey_path }}"
+    enabled: true
+    module_hotfixes: true
+
+- name: Install PostgreSQL packages
+  ansible.builtin.dnf:
+    name: "{{ postgresql_packages }}"
+    state: present
+
+- name: Ensure the PostgreSQL base directory exists
+  ansible.builtin.file:
+    path: /var/lib/pgsql
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0700"
+
+- name: Ensure the PostgreSQL socket directory exists
+  ansible.builtin.file:
+    path: "{{ postgresql_socket_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0755"
+
+- name: Initialize the PostgreSQL cluster
+  ansible.builtin.command:
+    argv:
+      - "{{ postgresql_bin_dir }}/postgresql-{{ postgresql_version }}-setup"
+      - initdb
+    creates: "{{ postgresql_data_dir }}/PG_VERSION"
+    chdir: /var/lib/pgsql
+  environment:
+    PGSETUP_INITDB_OPTIONS: "--encoding=UTF8 --locale=C.UTF-8"
+
+- name: Ensure the PostgreSQL log directory exists
+  ansible.builtin.file:
+    path: "{{ postgresql_data_dir }}/log"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0700"

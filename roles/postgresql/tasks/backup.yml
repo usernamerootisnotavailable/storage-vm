@@ -1,0 +1,79 @@
+---
+- name: Configure local PostgreSQL backups
+  when: postgresql_backup_enabled | bool
+  block:
+    - name: Ensure the backup directory exists
+      ansible.builtin.file:
+        path: "{{ postgresql_backup_dir }}"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: "0700"
+
+    - name: Install the PostgreSQL backup script
+      ansible.builtin.template:
+        src: postgresql-backup.sh.j2
+        dest: "{{ postgresql_backup_script_path }}"
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the PostgreSQL backup service
+      ansible.builtin.template:
+        src: postgresql-backup.service.j2
+        dest: "/etc/systemd/system/{{ postgresql_backup_service_name }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart the PostgreSQL backup timer
+
+    - name: Install the PostgreSQL backup timer
+      ansible.builtin.template:
+        src: postgresql-backup.timer.j2
+        dest: "/etc/systemd/system/{{ postgresql_backup_timer_name }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart the PostgreSQL backup timer
+
+    - name: Enable and start the PostgreSQL backup timer
+      ansible.builtin.systemd_service:
+        name: "{{ postgresql_backup_timer_name }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+- name: Remove local PostgreSQL backups when disabled
+  when: not (postgresql_backup_enabled | bool)
+  block:
+    - name: Inspect existing backup units
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ postgresql_backup_script_path }}"
+        - "/etc/systemd/system/{{ postgresql_backup_service_name }}"
+        - "/etc/systemd/system/{{ postgresql_backup_timer_name }}"
+      register: postgresql_backup_existing
+
+    - name: Remove existing backup units
+      when: postgresql_backup_existing.results | selectattr('stat.exists') | list | length > 0
+      block:
+        - name: Stop and disable the PostgreSQL backup timer
+          ansible.builtin.systemd_service:
+            name: "{{ postgresql_backup_timer_name }}"
+            enabled: false
+            state: stopped
+          when: postgresql_backup_existing.results[2].stat.exists
+
+        - name: Remove the PostgreSQL backup files
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ postgresql_backup_script_path }}"
+            - "/etc/systemd/system/{{ postgresql_backup_service_name }}"
+            - "/etc/systemd/system/{{ postgresql_backup_timer_name }}"
+
+        - name: Reload systemd after removing backup units
+          ansible.builtin.systemd_service:
+            daemon_reload: true

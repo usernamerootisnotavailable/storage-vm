@@ -1,0 +1,42 @@
+---
+- name: Read the SELinux mode
+  ansible.builtin.command:
+    argv:
+      - getenforce
+  register: postgresql_selinux_mode
+  changed_when: false
+  check_mode: false
+  when: not ansible_check_mode
+
+- name: Apply SELinux file contexts and port labels
+  when:
+    - not ansible_check_mode
+    - postgresql_selinux_mode.stdout | default('Disabled') in ['Enforcing', 'Permissive']
+  block:
+    - name: Label the PostgreSQL data directory
+      community.general.sefcontext:
+        target: "{{ postgresql_data_dir }}(/.*)?"
+        setype: postgresql_db_t
+        state: present
+
+    - name: Label the PostgreSQL log directory
+      community.general.sefcontext:
+        target: "{{ postgresql_data_dir }}/log(/.*)?"
+        setype: postgresql_log_t
+        state: present
+
+    - name: Apply the PostgreSQL file contexts
+      ansible.builtin.command:
+        argv:
+          - restorecon
+          - -R
+          - "{{ postgresql_data_dir }}"
+      changed_when: false
+
+    - name: Label a non-default PostgreSQL port
+      community.general.seport:
+        ports: "{{ postgresql_port }}"
+        proto: tcp
+        setype: postgresql_port_t
+        state: present
+      when: postgresql_port | int != 5432

@@ -1,0 +1,28 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Verify the PostgreSQL role
+      ansible.builtin.include_role:
+        name: postgresql
+        tasks_from: verify
+
+    - name: Run the PostgreSQL backup service
+      ansible.builtin.systemd_service:
+        name: postgresql-backup.service
+        state: started
+
+    - name: Find generated PostgreSQL backups
+      ansible.builtin.find:
+        paths: "{{ postgresql_backup_dir }}"
+        patterns: "postgresql-*.sql.gz"
+      register: postgresql_backups
+
+    - name: Assert a backup was created
+      ansible.builtin.assert:
+        that:
+          - postgresql_backups.matched | int > 0
+        fail_msg: The PostgreSQL backup service did not create a dump.
+        quiet: true

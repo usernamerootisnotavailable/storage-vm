@@ -1,0 +1,67 @@
+---
+# postgresql_version is required and pinned in inventory versions.yml.
+postgresql_port: 5432
+postgresql_listen_addresses: "127.0.0.1"
+postgresql_allowed_cidrs: []
+postgresql_manage_firewall: "{{ common_firewall_enabled | default(true) }}"
+postgresql_firewall_zone: "{{ common_firewall_zone | default('public') }}"
+
+postgresql_pgdg_baseurl: >-
+  https://download.postgresql.org/pub/repos/yum/{{ postgresql_version }}/redhat/rhel-10-$basearch
+postgresql_pgdg_gpgkey: "https://download.postgresql.org/pub/repos/yum/keys/PGDG-RPM-GPG-KEY-RHEL"
+postgresql_pgdg_gpgkey_checksum: "sha256:a70c9527426017d00fa4e6f9d2941d515357a27a7be82e155248ece53bbe5453"
+postgresql_pgdg_gpgkey_path: /etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG
+
+postgresql_packages:
+  - "postgresql{{ postgresql_version }}-server"
+  - "postgresql{{ postgresql_version }}"
+  - "postgresql{{ postgresql_version }}-contrib"
+  - firewalld
+  - libselinux-utils
+  - policycoreutils-python-utils
+  - python3-cryptography
+  - python3-firewall
+  - python3-libselinux
+  - python3-psycopg2
+
+postgresql_data_dir: "/var/lib/pgsql/{{ postgresql_version }}/data"
+postgresql_bin_dir: "/usr/pgsql-{{ postgresql_version }}/bin"
+postgresql_service_name: "postgresql-{{ postgresql_version }}"
+postgresql_socket_dir: "/run/postgresql"
+
+postgresql_app_user: app
+postgresql_app_database: appdb
+postgresql_rotate_passwords: false
+
+postgresql_max_connections: 100
+postgresql_shared_buffers: "256MB"
+postgresql_effective_cache_size: "768MB"
+postgresql_maintenance_work_mem: "64MB"
+postgresql_work_mem: "4MB"
+postgresql_wal_level: replica
+postgresql_password_encryption: scram-sha-256
+postgresql_log_min_duration_statement: 1000
+postgresql_timezone: UTC
+postgresql_extra_hba_entries: []
+
+postgresql_tls_enabled: true
+postgresql_tls_mode: generated
+postgresql_tls_dir: "{{ postgresql_data_dir }}/tls"
+postgresql_tls_cert_path: "{{ postgresql_tls_dir }}/server.crt"
+postgresql_tls_key_path: "{{ postgresql_tls_dir }}/server.key"
+postgresql_tls_common_name: "{{ inventory_hostname }}"
+postgresql_tls_sans:
+  - "DNS:{{ inventory_hostname }}"
+  - "DNS:localhost"
+  - "IP:127.0.0.1"
+postgresql_tls_key_size: 2048
+postgresql_tls_cert_validity_days: 825
+postgresql_tls_min_protocol: TLSv1.2
+
+postgresql_backup_enabled: true
+postgresql_backup_dir: /var/backups/postgresql
+postgresql_backup_retention_days: 7
+postgresql_backup_on_calendar: "*-*-* 02:15:00"
+postgresql_backup_script_path: /usr/local/sbin/postgresql-backup
+postgresql_backup_service_name: postgresql-backup.service
+postgresql_backup_timer_name: postgresql-backup.timer

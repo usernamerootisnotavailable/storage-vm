@@ -1,0 +1,10 @@
+---
+- name: Apply the AlmaLinux 10 baseline
+  hosts: storage
+  become: true
+  gather_facts: true
+  any_errors_fatal: true
+  roles:
+    - role: common
+      tags:
+        - common

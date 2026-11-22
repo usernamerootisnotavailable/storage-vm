@@ -1,0 +1,25 @@
+---
+- name: Create the application role and database
+  when: not ansible_check_mode
+  block:
+    - name: Create the application role
+      community.postgresql.postgresql_user:
+        name: "{{ postgresql_app_user }}"
+        password: "{{ postgresql_app_password }}"
+        role_attr_flags: LOGIN
+        no_password_changes: "{{ not (postgresql_rotate_passwords | bool) }}"
+        login_unix_socket: "{{ postgresql_socket_dir }}"
+        state: present
+      become: true
+      become_user: postgres
+      no_log: true
+
+    - name: Create the application database
+      community.postgresql.postgresql_db:
+        name: "{{ postgresql_app_database }}"
+        owner: "{{ postgresql_app_user }}"
+        encoding: UTF8
+        login_unix_socket: "{{ postgresql_socket_dir }}"
+        state: present
+      become: true
+      become_user: postgres

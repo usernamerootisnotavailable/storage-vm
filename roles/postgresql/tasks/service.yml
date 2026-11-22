@@ -1,0 +1,24 @@
+---
+- name: Enable and start PostgreSQL
+  ansible.builtin.systemd_service:
+    name: "{{ postgresql_service_name }}"
+    enabled: true
+    state: started
+
+- name: Apply pending PostgreSQL restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for PostgreSQL to accept connections
+  ansible.builtin.command:
+    argv:
+      - "{{ postgresql_bin_dir }}/pg_isready"
+      - -h
+      - 127.0.0.1
+      - -p
+      - "{{ postgresql_port }}"
+  register: postgresql_ready
+  until: postgresql_ready.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+  when: not ansible_check_mode

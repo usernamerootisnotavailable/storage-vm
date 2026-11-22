@@ -1,0 +1,32 @@
+---
+- name: Configure postgresql.conf
+  ansible.builtin.template:
+    src: postgresql.conf.j2
+    dest: "{{ postgresql_data_dir }}/postgresql.conf"
+    owner: postgres
+    group: postgres
+    mode: "0600"
+  notify: Restart postgresql
+
+- name: Configure pg_hba.conf
+  ansible.builtin.template:
+    src: pg_hba.conf.j2
+    dest: "{{ postgresql_data_dir }}/pg_hba.conf"
+    owner: postgres
+    group: postgres
+    mode: "0600"
+  notify: Restart postgresql
+
+- name: Validate the PostgreSQL configuration
+  ansible.builtin.command:
+    argv:
+      - "{{ postgresql_bin_dir }}/postgres"
+      - -C
+      - shared_buffers
+      - -D
+      - "{{ postgresql_data_dir }}"
+  become: true
+  become_user: postgres
+  changed_when: false
+  check_mode: false
+  when: not ansible_check_mode

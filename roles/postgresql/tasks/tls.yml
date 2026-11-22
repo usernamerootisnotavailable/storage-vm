@@ -1,0 +1,74 @@
+---
+- name: Ensure the TLS directory exists
+  ansible.builtin.file:
+    path: "{{ postgresql_tls_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0700"
+  when: postgresql_tls_enabled | bool
+
+- name: Configure generated TLS certificates
+  when:
+    - postgresql_tls_enabled | bool
+    - postgresql_tls_mode == 'generated'
+  block:
+    - name: Generate the PostgreSQL private key
+      community.crypto.openssl_privatekey:
+        path: "{{ postgresql_tls_key_path }}"
+        type: RSA
+        size: "{{ postgresql_tls_key_size }}"
+        owner: postgres
+        group: postgres
+        mode: "0600"
+      notify: Restart postgresql
+
+    - name: Generate the PostgreSQL certificate signing request
+      community.crypto.openssl_csr:
+        path: "{{ postgresql_tls_dir }}/server.csr"
+        privatekey_path: "{{ postgresql_tls_key_path }}"
+        common_name: "{{ postgresql_tls_common_name }}"
+        subject_alt_name: "{{ postgresql_tls_sans }}"
+        owner: postgres
+        group: postgres
+        mode: "0644"
+
+    - name: Generate the PostgreSQL self-signed certificate
+      community.crypto.x509_certificate:
+        path: "{{ postgresql_tls_cert_path }}"
+        csr_path: "{{ postgresql_tls_dir }}/server.csr"
+        privatekey_path: "{{ postgresql_tls_key_path }}"
+        provider: selfsigned
+        selfsigned_not_after: "+{{ postgresql_tls_cert_validity_days }}d"
+        owner: postgres
+        group: postgres
+        mode: "0644"
+      notify: Restart postgresql
+
+- name: Validate provided TLS material
+  when:
+    - postgresql_tls_enabled | bool
+    - postgresql_tls_mode == 'provided'
+  block:
+    - name: Inspect the provided TLS files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ postgresql_tls_cert_path }}"
+        - "{{ postgresql_tls_key_path }}"
+      register: postgresql_tls_provided
+
+    - name: Require provided TLS files with safe ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - postgresql_tls_provided.results[0].stat.exists
+          - postgresql_tls_provided.results[1].stat.exists
+          - postgresql_tls_provided.results[0].stat.pw_name | default('') == 'postgres'
+          - postgresql_tls_provided.results[1].stat.pw_name | default('') == 'postgres'
+          - postgresql_tls_provided.results[0].stat.gr_name | default('') == 'postgres'
+          - postgresql_tls_provided.results[1].stat.gr_name | default('') == 'postgres'
+          - postgresql_tls_provided.results[1].stat.mode | default('') in ['0600', '0640']
+        fail_msg: >-
+          Provided TLS files must exist, be owned by postgres:postgres, and the
+          private key must be mode 0600 or 0640.
+        quiet: true

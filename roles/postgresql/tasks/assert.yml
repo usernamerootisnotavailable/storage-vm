@@ -1,0 +1,73 @@
+---
+- name: Verify the supported platform
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "AlmaLinux"
+      - ansible_distribution_major_version | int == 10
+    fail_msg: Only AlmaLinux 10 is supported.
+    quiet: true
+
+- name: Validate the PostgreSQL major version
+  ansible.builtin.assert:
+    that:
+      - postgresql_version is match('^[0-9]+$')
+    fail_msg: postgresql_version must be a major version such as "18".
+    quiet: true
+
+- name: Require a non-trivial application password
+  ansible.builtin.assert:
+    that:
+      - postgresql_app_password is defined
+      - postgresql_app_password | length >= 16
+    fail_msg: Set postgresql_app_password from SOPS to a value of at least 16 characters.
+    quiet: true
+  no_log: true
+
+- name: Require TLS for externally reachable PostgreSQL
+  ansible.builtin.assert:
+    that:
+      - postgresql_tls_enabled | bool or postgresql_allowed_cidrs | length == 0
+    fail_msg: TLS is required when PostgreSQL is reachable from non-loopback clients.
+    quiet: true
+
+- name: Require a reachable listener when client CIDRs are allowed
+  ansible.builtin.assert:
+    that:
+      - >-
+        postgresql_allowed_cidrs | length == 0 or
+        postgresql_listen_addresses not in ['127.0.0.1', 'localhost']
+    fail_msg: >-
+      Set postgresql_listen_addresses to an address reachable by the allowed
+      client CIDRs.
+    quiet: true
+
+- name: Require local loopback for administration and verification
+  ansible.builtin.assert:
+    that:
+      - >-
+        postgresql_listen_addresses in ['*', '0.0.0.0'] or
+        '127.0.0.1' in postgresql_listen_addresses
+    fail_msg: >-
+      postgresql_listen_addresses must include 127.0.0.1 for local
+      administration, backup, and verification.
+    quiet: true
+
+- name: Require firewall rules when listening on every interface
+  ansible.builtin.assert:
+    that:
+      - >-
+        postgresql_listen_addresses not in ['*', '0.0.0.0', '::'] or
+        postgresql_allowed_cidrs | length > 0
+    fail_msg: >-
+      Set postgresql_allowed_cidrs when PostgreSQL listens on every
+      interface, or bind it to a specific address.
+    quiet: true
+  when: postgresql_manage_firewall | bool
+
+- name: Validate the application identifiers
+  ansible.builtin.assert:
+    that:
+      - postgresql_app_user is match('^[a-z_][a-z0-9_]*$')
+      - postgresql_app_database is match('^[a-z_][a-z0-9_]*$')
+    fail_msg: Application role and database names must be lowercase PostgreSQL identifiers.
+    quiet: true

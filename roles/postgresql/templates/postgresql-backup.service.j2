@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+[Unit]
+Description=PostgreSQL logical backup
+After={{ postgresql_service_name }}.service
+Requires={{ postgresql_service_name }}.service
+
+[Service]
+Type=oneshot
+User=postgres
+Group=postgres
+Environment=PGHOST={{ postgresql_socket_dir }}
+Environment=PGPORT={{ postgresql_port }}
+ExecStart={{ postgresql_backup_script_path }}

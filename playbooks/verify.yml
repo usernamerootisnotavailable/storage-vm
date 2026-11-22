@@ -1,0 +1,22 @@
+---
+- name: Verify the storage host
+  hosts: storage
+  become: true
+  gather_facts: true
+  any_errors_fatal: true
+  tasks:
+    - name: Verify the baseline
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: verify
+      tags:
+        - verify
+        - common
+
+    - name: Verify PostgreSQL
+      ansible.builtin.include_role:
+        name: postgresql
+        tasks_from: verify
+      tags:
+        - verify
+        - postgresql

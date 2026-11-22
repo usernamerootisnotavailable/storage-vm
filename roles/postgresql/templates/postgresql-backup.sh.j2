@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+set -euo pipefail
+umask 077
+
+backup_dir="{{ postgresql_backup_dir }}"
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+output="${backup_dir}/postgresql-${stamp}.sql.gz"
+temporary="${output}.tmp"
+
+trap 'rm -f "${temporary}"' EXIT
+
+"{{ postgresql_bin_dir }}/pg_dumpall" --clean --if-exists | gzip -9 > "${temporary}"
+mv "${temporary}" "${output}"
+find "${backup_dir}" -type f -name 'postgresql-*.sql.gz' -mtime +{{ postgresql_backup_retention_days }} -delete
