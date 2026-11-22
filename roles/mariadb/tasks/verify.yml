@@ -41,9 +41,9 @@
 - name: Assert the application connection is correct
   ansible.builtin.assert:
     that:
-      - mariadb_app_check.query_result[0].database_name == mariadb_app_database
-      - mariadb_app_check.query_result[0].current_user is search('^' ~ mariadb_app_user ~ '@')
-      - mariadb_app_check.query_result[0].ssl_cipher | default('') | length > 0
+      - mariadb_app_check.query_result[0][0].database_name == mariadb_app_database
+      - mariadb_app_check.query_result[0][0].current_user is search('^' ~ mariadb_app_user ~ '@')
+      - mariadb_app_check.query_result[0][0].ssl_cipher | default('') | length > 0
     fail_msg: The application connection did not use the expected database, user, or TLS.
     quiet: true
   when: not ansible_check_mode

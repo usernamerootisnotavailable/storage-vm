@@ -198,7 +198,7 @@
       ansible.builtin.set_fact:
         garage_bucket_id: "{{ garage_bucket_info_final.json.id }}"
         garage_bucket_key: >-
-          {{ (garage_bucket_info_final.json.keys
+          {{ (garage_bucket_info_final.json['keys']
               | selectattr('accessKeyId', 'equalto', garage_s3_access_key)
               | list | first | default({})) }}
       when: garage_manage_bucket | bool

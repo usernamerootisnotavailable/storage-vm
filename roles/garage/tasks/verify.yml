@@ -58,7 +58,7 @@
     - name: Extract the shared S3 key permissions
       ansible.builtin.set_fact:
         garage_verify_key: >-
-          {{ (garage_verify_bucket.json.keys
+          {{ (garage_verify_bucket.json['keys']
               | selectattr('accessKeyId', 'equalto', garage_s3_access_key)
               | list | first | default({})) }}
       when: garage_manage_bucket | bool

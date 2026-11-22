@@ -19,7 +19,7 @@
         login_unix_socket: "{{ mariadb_socket }}"
         login_user: root
         query: "ALTER USER 'root'@'localhost' IDENTIFIED VIA unix_socket"
-      when: mariadb_root_plugin.query_result[0].plugin | default('') != 'unix_socket'
+      when: mariadb_root_plugin.query_result[0][0].plugin | default('') != 'unix_socket'
       changed_when: true
       no_log: true
 
@@ -36,10 +36,10 @@
         login_unix_socket: "{{ mariadb_socket }}"
         login_user: root
         query: "DROP USER IF EXISTS ''@'{{ item.Host }}'"
-      loop: "{{ mariadb_anonymous_users.query_result }}"
+      loop: "{{ mariadb_anonymous_users.query_result[0] }}"
       loop_control:
         label: "{{ item.User }}@{{ item.Host }}"
-      when: mariadb_anonymous_users.query_result | length > 0
+      when: mariadb_anonymous_users.query_result[0] | length > 0
       changed_when: true
 
     - name: Remove remote root accounts
