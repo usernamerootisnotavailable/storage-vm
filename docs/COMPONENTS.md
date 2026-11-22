@@ -155,4 +155,4 @@ Local backups on the same host are not disaster recovery.
 - Garage 2.5.0 config, single-node layout, key import, bucket creation, and permissions tested with the actual binary and admin API.
 - Elasticsearch 9.5.6 TLS, bootstrap password, authentication, and Garage S3 snapshot flow tested with the actual package and a running Garage instance.
 - NGINX configuration syntax, TLS termination, Elasticsearch HTTPS upstream verification, and S3 HTTP proxying were validated with the AlmaLinux 10 NGINX 1.26.3 binary and local dummy upstreams. Molecule and full-stack integration exercise the role and real service routing. Let's Encrypt DNS-01, Cloudflare API access, and SELinux `httpd_t` network policy require a real host and real Cloudflare credentials.
-- Container package installation, systemd services, SELinux enforcement, and firewalld behavior remain CI/real-host validation items.
+- Molecule and full-stack integration run package installation and systemd service checks in CI. SELinux enforcement, firewalld behavior, and real-host certificate issuance require a real AlmaLinux 10 host.

@@ -1,5 +1,8 @@
 FROM almalinux:10
 
+# Tell systemd it is running inside Docker so it skips host-only setup.
+ENV container=docker
+
 # Package versions follow the AlmaLinux 10 base image and receive security updates.
 # hadolint ignore=DL3041
 RUN dnf -y install \

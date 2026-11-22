@@ -31,4 +31,3 @@ ignore: |
   .molecule/
   .venv/
   collections/
-  docs/executive/deck/node_modules/

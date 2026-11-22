@@ -175,7 +175,7 @@ Package repositories are configured by the role that needs them. All vendor repo
 - **SELinux gaps:** Garage and Elasticsearch run unconfined because AlmaLinux 10 has no matching vendor policy. MariaDB keeps enforcing with its vendor module. NGINX's `httpd_t` to upstream port policy requires real-host verification.
 - **Certificate dependency:** Let's Encrypt mode requires a Cloudflare-managed domain, a scoped API token, and outbound HTTPS. DNS-01 is not exercised in CI; development uses generated certificates.
 - **Container fidelity:** Docker validates packages, templates, services, and idempotence, but not SELinux enforcement, kernel firewall behavior, or real block devices. A real-host smoke test is required before production.
-- **Vendor support:** Elasticsearch 9.5.6 and MariaDB 11.8.10 EL10 packages are verified, but full package installation remains a CI/real-host validation item.
+- **Vendor support:** Elasticsearch 9.5.6 and MariaDB 11.8.10 EL10 packages are verified. Molecule and integration exercise package installation and systemd services; SELinux enforcement and firewalld behavior still require a real host.
 - **No HA:** Elasticsearch is a single node, PostgreSQL and MariaDB have no replicas, and Garage has a single-node layout.
 
 ## Adding a service

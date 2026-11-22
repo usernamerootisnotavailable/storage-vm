@@ -10,13 +10,21 @@ __pycache__/
 *.retry
 *.log
 
+# Python tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.coverage
+*.egg-info/
+
+# Local environment files
+.direnv/
+.DS_Store
+
 # Local development container state
 .dev/
 docker/dev/.env
-
-# Executive deck build outputs and local Node tooling
-docs/executive/exports/
-docs/executive/deck/node_modules/
 
 # Secrets and private material
 .env

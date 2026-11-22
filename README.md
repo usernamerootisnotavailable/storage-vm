@@ -21,7 +21,7 @@ One host runs all services per environment. Development and production use the s
 | Garage 2.5 role | Implemented |
 | Elasticsearch 9.5 role | Implemented |
 | NGINX private TLS reverse proxy | Implemented |
-| Full-stack integration | All services, Garage snapshots, and NGINX routing |
+| Full-stack integration | Implemented (all services, Garage snapshots, NGINX routing) |
 
 `site.yml` applies `common`, PostgreSQL, MariaDB, Garage, Elasticsearch, NGINX, and verification in dependency order. Garage is configured before Elasticsearch so the snapshot repository can be registered and verified. NGINX runs after Elasticsearch so it can trust the Elasticsearch CA.
 

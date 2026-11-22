@@ -33,6 +33,7 @@ Run from the repository root unless a target says otherwise. `ansible.cfg` and `
 `docker/dev/` builds a systemd-enabled AlmaLinux 10 image with:
 
 - `systemd` as PID 1
+- `container=docker` so systemd detects the container environment
 - Python 3 for Ansible
 - `sudo` and an `ansible` automation user
 - `openssh-server` for the persistent development container
@@ -111,7 +112,7 @@ The Docker host must provide `vm.max_map_count=262144`; the integration and `dev
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
 
-1. **lint** — `yamllint`, `ansible-lint`, policy checks, syntax check
+1. **lint** — `yamllint`, `ansible-lint`, `shellcheck`, policy checks, syntax check
 2. **secret-scan** — `gitleaks` with a pinned binary
 3. **molecule** — matrix over `common`, `postgresql`, `mariadb`, `garage`, `elasticsearch`, and `nginx`
 4. **integration** — full `site.yml` on the AlmaLinux 10 container, including the Garage S3 snapshot repository and NGINX TLS routing

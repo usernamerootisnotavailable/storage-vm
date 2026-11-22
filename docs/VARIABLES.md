@@ -30,10 +30,11 @@ common_ssh_permit_root_login: "no"
 Rules:
 
 - `snake_case` only.
-- Prefix every role variable with the role name (`common_`, `postgresql_`, `mariadb_`, `garage_`, `elasticsearch_`).
+- Prefix every role variable with the role name (`common_`, `postgresql_`, `mariadb_`, `garage_`, `elasticsearch_`, `nginx_`).
 - Include units for time, size, and rates: `_seconds`, `_mb`, `_days`, `_cidrs`.
 - Use `_enabled` for booleans.
 - Use `_path` for filesystem paths, `_url` for URLs, `_cidrs` for CIDR lists.
+- Use the `storage_` prefix for shared cross-service values and `secret_` only in SOPS files.
 - Use plural names for lists and mappings.
 - Do not include environment names, hostnames, or regions in variable names.
 - Do not abbreviate words that are unclear.

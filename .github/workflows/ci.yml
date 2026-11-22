@@ -108,6 +108,17 @@ jobs:
       - name: Run the Molecule scenario
         working-directory: roles/${{ matrix.role }}
         run: molecule test
+      - name: Collect Molecule diagnostics
+        if: failure()
+        working-directory: roles/${{ matrix.role }}
+        run: |
+          molecule list || true
+          docker ps -a
+          for container in $(docker ps -aq --filter label=owner=molecule); do
+            echo "::group::docker logs ${container}"
+            docker logs "${container}" || true
+            echo "::endgroup::"
+          done
 
   integration:
     name: Full-stack integration
@@ -131,3 +142,11 @@ jobs:
         run: sudo sysctl -w vm.max_map_count=262144
       - name: Run the integration test
         run: ./scripts/integration-test.sh
+      - name: Collect integration diagnostics
+        if: failure()
+        env:
+          DEV_SSH_PUBKEY: /dev/null
+        run: |
+          docker compose -f docker/dev/compose.yml ps || true
+          docker compose -f docker/dev/compose.yml logs || true
+          docker ps -a
