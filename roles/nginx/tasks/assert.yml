@@ -1,0 +1,80 @@
+---
+- name: Verify the supported platform
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "AlmaLinux"
+      - ansible_distribution_major_version | int == 10
+    fail_msg: Only AlmaLinux 10 is supported.
+    quiet: true
+
+- name: Validate the domain and enabled services
+  ansible.builtin.assert:
+    that:
+      - nginx_base_domain is match('^[a-z0-9][a-z0-9.-]*[a-z0-9]$')
+      - nginx_enable_elasticsearch | bool or nginx_enable_s3 | bool
+      - nginx_certificate_names | length > 0
+    fail_msg: Set a valid nginx_base_domain and enable at least one upstream.
+    quiet: true
+
+- name: Require private source CIDRs
+  ansible.builtin.assert:
+    that:
+      - nginx_allowed_cidrs | length > 0
+      - "'0.0.0.0/0' not in nginx_allowed_cidrs"
+      - "'::/0' not in nginx_allowed_cidrs"
+    fail_msg: >-
+      Set nginx_allowed_cidrs to the private or VPN networks permitted to
+      reach port 443. Public CIDRs are forbidden.
+    quiet: true
+
+- name: Validate the listener
+  ansible.builtin.assert:
+    that:
+      - nginx_listen_address | length > 0
+    fail_msg: Set nginx_listen_address.
+    quiet: true
+
+- name: Require loopback upstreams
+  ansible.builtin.assert:
+    that:
+      - nginx_elasticsearch_upstream is match('^https://127\.0\.0\.1:[0-9]+$')
+    fail_msg: Elasticsearch must be proxied over loopback HTTPS.
+    quiet: true
+  when: nginx_enable_elasticsearch | bool
+
+- name: Require a loopback S3 upstream
+  ansible.builtin.assert:
+    that:
+      - nginx_s3_upstream is match('^http://127\.0\.0\.1:[0-9]+$')
+    fail_msg: Garage S3 must be proxied over loopback HTTP.
+    quiet: true
+  when: nginx_enable_s3 | bool
+
+- name: Require the Elasticsearch CA source
+  ansible.builtin.stat:
+    path: "{{ nginx_elasticsearch_ca_source }}"
+  register: nginx_elasticsearch_ca_stat
+  when: nginx_enable_elasticsearch | bool
+
+- name: Assert the Elasticsearch CA is available
+  ansible.builtin.assert:
+    that:
+      - nginx_elasticsearch_ca_stat.stat.exists
+    fail_msg: >-
+      The Elasticsearch CA is missing. Apply the Elasticsearch role before
+      NGINX, or set nginx_elasticsearch_ca_source.
+    quiet: true
+  when: nginx_enable_elasticsearch | bool
+
+- name: Validate Let's Encrypt settings
+  ansible.builtin.assert:
+    that:
+      - nginx_letsencrypt_email is match('^[^@]+@[^@]+\.[^@]+$')
+      - nginx_cloudflare_api_token | length > 20
+      - nginx_cloudflare_api_token != 'REPLACE_WITH_CLOUDFLARE_API_TOKEN'
+    fail_msg: >-
+      Set nginx_letsencrypt_email and a scoped Cloudflare API token in SOPS
+      before using Let's Encrypt mode.
+    quiet: true
+  no_log: true
+  when: nginx_certificate_mode == 'letsencrypt'

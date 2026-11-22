@@ -1,0 +1,70 @@
+---
+- name: Copy the Elasticsearch CA for upstream verification
+  ansible.builtin.copy:
+    src: "{{ nginx_elasticsearch_ca_source }}"
+    dest: "{{ nginx_elasticsearch_ca_path }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+  when: nginx_enable_elasticsearch | bool
+
+- name: Configure the NGINX main configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Configure the default TLS server
+  ansible.builtin.template:
+    src: 00-default.conf.j2
+    dest: /etc/nginx/conf.d/00-default.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Configure the Elasticsearch virtual host
+  ansible.builtin.template:
+    src: 10-elasticsearch.conf.j2
+    dest: /etc/nginx/conf.d/10-elasticsearch.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+  when: nginx_enable_elasticsearch | bool
+
+- name: Configure the Garage S3 virtual host
+  ansible.builtin.template:
+    src: 20-garage-s3.conf.j2
+    dest: /etc/nginx/conf.d/20-garage-s3.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+  when: nginx_enable_s3 | bool
+
+- name: Remove the Elasticsearch virtual host when disabled
+  ansible.builtin.file:
+    path: /etc/nginx/conf.d/10-elasticsearch.conf
+    state: absent
+  notify: Reload nginx
+  when: not (nginx_enable_elasticsearch | bool)
+
+- name: Remove the Garage S3 virtual host when disabled
+  ansible.builtin.file:
+    path: /etc/nginx/conf.d/20-garage-s3.conf
+    state: absent
+  notify: Reload nginx
+  when: not (nginx_enable_s3 | bool)
+
+- name: Validate the NGINX configuration
+  ansible.builtin.command:
+    argv:
+      - nginx
+      - -t
+  changed_when: false
+  check_mode: false

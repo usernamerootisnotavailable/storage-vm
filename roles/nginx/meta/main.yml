@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  namespace: storage_host
+  role_name: nginx
+  author: Storage Host Maintainers
+  description: Private NGINX TLS reverse proxy with Let's Encrypt DNS-01
+  license: MIT
+  min_ansible_version: "2.22"
+  platforms:
+    - name: AlmaLinux
+      versions:
+        - "10"
+  galaxy_tags:
+    - web
+    - proxy
+    - tls
+dependencies: []

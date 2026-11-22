@@ -1,0 +1,33 @@
+---
+- name: Allow HTTPS from approved private source CIDRs
+  when: nginx_manage_firewall | bool
+  block:
+    - name: Ensure firewalld is running
+      ansible.builtin.systemd_service:
+        name: firewalld
+        enabled: true
+        state: started
+
+    - name: Add NGINX HTTPS firewall rules
+      ansible.posix.firewalld:
+        rich_rule: >-
+          rule family="{{ 'ipv6' if ':' in item else 'ipv4' }}"
+          source address="{{ item }}"
+          port protocol="tcp" port="443" accept
+        zone: "{{ nginx_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ nginx_allowed_cidrs }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Allow HTTPS from loopback for local verification
+      ansible.posix.firewalld:
+        rich_rule: >-
+          rule family="ipv4" source address="127.0.0.1/32"
+          port protocol="tcp" port="443" accept
+        zone: "{{ nginx_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: enabled

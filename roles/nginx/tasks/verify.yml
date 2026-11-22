@@ -1,0 +1,129 @@
+---
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Verify NGINX is running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services.get(nginx_service_name ~ '.service', {}).get('state', '') == 'running'
+    fail_msg: NGINX is not running.
+    quiet: true
+
+- name: Validate the NGINX configuration
+  ansible.builtin.command:
+    argv:
+      - nginx
+      - -t
+  changed_when: false
+  check_mode: false
+
+- name: Verify the TLS certificate files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ nginx_tls_cert_path }}"
+    - "{{ nginx_tls_key_path }}"
+  register: nginx_tls_check
+
+- name: Assert the TLS certificate files are present
+  ansible.builtin.assert:
+    that:
+      - nginx_tls_check.results[0].stat.exists
+      - nginx_tls_check.results[1].stat.exists
+      - nginx_tls_check.results[1].stat.mode | default('') in ['0600', '0640']
+    fail_msg: NGINX TLS files are missing or the private key permissions are unsafe.
+    quiet: true
+
+- name: Verify the certificate is not expiring within one day
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - x509
+      - -in
+      - "{{ nginx_tls_cert_path }}"
+      - -noout
+      - -checkend
+      - "86400"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Verify upstream routing
+  when:
+    - nginx_verify_upstreams | bool
+    - not ansible_check_mode
+  block:
+    - name: Verify the Elasticsearch virtual host over TLS
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --show-error
+          - --output
+          - /dev/null
+          - --write-out
+          - "%{http_code}"
+          - --cacert
+          - "{{ nginx_verify_ca_cert }}"
+          - --resolve
+          - "{{ nginx_elasticsearch_host }}:443:{{ nginx_verify_address }}"
+          - "https://{{ nginx_elasticsearch_host }}/"
+      register: nginx_elasticsearch_probe
+      changed_when: false
+      when: nginx_enable_elasticsearch | bool
+
+    - name: Assert the Elasticsearch host requires authentication
+      ansible.builtin.assert:
+        that:
+          - nginx_elasticsearch_probe.stdout == '401'
+        fail_msg: The Elasticsearch reverse proxy did not return 401 for an unauthenticated request.
+        quiet: true
+      when: nginx_enable_elasticsearch | bool
+
+    - name: Verify the Garage S3 virtual host over TLS
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --show-error
+          - --output
+          - /dev/null
+          - --write-out
+          - "%{http_code}"
+          - --cacert
+          - "{{ nginx_verify_ca_cert }}"
+          - --resolve
+          - "{{ nginx_s3_host }}:443:{{ nginx_verify_address }}"
+          - "https://{{ nginx_s3_host }}/"
+      register: nginx_s3_probe
+      changed_when: false
+      when: nginx_enable_s3 | bool
+
+    - name: Assert the S3 host rejects anonymous access
+      ansible.builtin.assert:
+        that:
+          - nginx_s3_probe.stdout in ['403', '404']
+        fail_msg: The Garage S3 reverse proxy did not reject anonymous access.
+        quiet: true
+      when: nginx_enable_s3 | bool
+
+- name: Verify the Certbot renewal timer
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-enabled
+      - certbot-renew.timer
+  register: nginx_certbot_timer
+  changed_when: false
+  when:
+    - nginx_certificate_mode == 'letsencrypt'
+    - not ansible_check_mode
+
+- name: Assert the Certbot renewal timer is enabled
+  ansible.builtin.assert:
+    that:
+      - nginx_certbot_timer.stdout == 'enabled'
+    fail_msg: The Certbot renewal timer is not enabled.
+    quiet: true
+  when:
+    - nginx_certificate_mode == 'letsencrypt'
+    - not ansible_check_mode

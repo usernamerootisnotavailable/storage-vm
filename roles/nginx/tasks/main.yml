@@ -1,0 +1,28 @@
+---
+- name: Validate the NGINX configuration
+  ansible.builtin.import_tasks: assert.yml
+
+- name: Install NGINX and dependencies
+  ansible.builtin.import_tasks: install.yml
+
+- name: Configure certificates
+  ansible.builtin.import_tasks: tls.yml
+
+- name: Configure Let's Encrypt
+  ansible.builtin.import_tasks: letsencrypt.yml
+  when: nginx_certificate_mode == 'letsencrypt'
+
+- name: Configure NGINX
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Apply SELinux policy
+  ansible.builtin.import_tasks: selinux.yml
+
+- name: Start NGINX
+  ansible.builtin.import_tasks: service.yml
+
+- name: Configure the firewall
+  ansible.builtin.import_tasks: firewall.yml
+
+- name: Verify NGINX
+  ansible.builtin.import_tasks: verify.yml

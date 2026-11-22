@@ -1,0 +1,14 @@
+---
+nginx_certificate_names: >-
+  {{ ([nginx_elasticsearch_host] if nginx_enable_elasticsearch | bool else []) +
+     ([nginx_s3_host] if nginx_enable_s3 | bool else []) }}
+
+nginx_certificate_expected_sans: >-
+  {{ ([('DNS:' ~ nginx_elasticsearch_host)] if nginx_enable_elasticsearch | bool else []) +
+     ([('DNS:' ~ nginx_s3_host)] if nginx_enable_s3 | bool else []) }}
+
+nginx_elasticsearch_upstream_port: "{{ nginx_elasticsearch_upstream | urlsplit('port') | int }}"
+nginx_s3_upstream_port: "{{ nginx_s3_upstream | urlsplit('port') | int }}"
+
+nginx_certbot_domain_args: >-
+  {{ nginx_certificate_names | map('regex_replace', '^', '-d ') | join(' ') }}

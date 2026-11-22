@@ -1,0 +1,65 @@
+---
+# nginx_version and nginx_base_domain are required.
+nginx_base_domain: ""
+nginx_certificate_mode: letsencrypt
+nginx_cert_name: storage-host
+
+nginx_elasticsearch_host: "es.{{ nginx_base_domain }}"
+nginx_s3_host: "s3.{{ nginx_base_domain }}"
+nginx_enable_elasticsearch: true
+nginx_enable_s3: true
+
+nginx_listen_address: "0.0.0.0"
+nginx_verify_address: >-
+  {{ '127.0.0.1' if nginx_listen_address in ['0.0.0.0', '*'] else nginx_listen_address }}
+nginx_allowed_cidrs: []
+nginx_manage_firewall: "{{ common_firewall_enabled | default(true) }}"
+nginx_firewall_zone: "{{ common_firewall_zone | default('public') }}"
+nginx_verify_upstreams: true
+
+nginx_service_name: nginx
+nginx_packages:
+  - "nginx-{{ nginx_version }}"
+  - curl
+  - openssl
+  - firewalld
+  - libselinux-utils
+  - policycoreutils
+  - policycoreutils-python-utils
+  - python3-cryptography
+  - python3-firewall
+
+nginx_elasticsearch_upstream: "https://127.0.0.1:9200"
+nginx_elasticsearch_ca_source: /etc/elasticsearch/certs/ca.crt
+nginx_elasticsearch_ca_path: "{{ nginx_tls_dir }}/elasticsearch-ca.crt"
+nginx_elasticsearch_client_max_body_size: "100m"
+nginx_s3_upstream: "http://127.0.0.1:3900"
+nginx_s3_client_max_body_size: "0"
+
+nginx_tls_dir: /etc/nginx/tls
+nginx_tls_cert_path: "{{ nginx_tls_dir }}/fullchain.pem"
+nginx_tls_key_path: "{{ nginx_tls_dir }}/privkey.pem"
+nginx_tls_ca_path: "{{ nginx_tls_dir }}/ca.crt"
+nginx_certificate_common_name: "{{ nginx_base_domain }}"
+nginx_certificate_validity_days: 825
+nginx_generated_ca_validity_days: 3650
+nginx_verify_ca_cert: >-
+  {{ nginx_tls_ca_path if nginx_certificate_mode == 'generated'
+     else '/etc/ssl/certs/ca-certificates.crt' }}
+
+nginx_ssl_protocols: "TLSv1.2 TLSv1.3"
+nginx_ssl_ciphers: "PROFILE=SYSTEM"
+nginx_hsts_max_age: 31536000
+nginx_worker_connections: 1024
+
+nginx_letsencrypt_email: ""
+nginx_cloudflare_api_token: ""
+nginx_cloudflare_credentials_path: /etc/letsencrypt/cloudflare.ini
+nginx_certbot_venv: /opt/certbot
+nginx_certbot_version: "5.10.0"
+nginx_certbot_dns_cloudflare_version: "5.10.0"
+nginx_certbot_packages:
+  - python3-pip
+nginx_certbot_propagation_seconds: 30
+nginx_certbot_renew_on_calendar: "*-*-* 00,12:00:00"
+nginx_deploy_hook_path: /usr/local/sbin/certbot-deploy-nginx

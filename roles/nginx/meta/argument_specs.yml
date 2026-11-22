@@ -1,0 +1,150 @@
+---
+argument_specs:
+  main:
+    short_description: Configure a private NGINX TLS reverse proxy
+    description:
+      - Terminates TLS for Elasticsearch and Garage S3.
+      - Uses Certbot with the Cloudflare DNS plugin for Let's Encrypt certificates,
+        or a generated CA/certificate for offline development.
+    options:
+      nginx_version:
+        type: str
+        required: true
+        description: NGINX version, pinned in inventory.
+      nginx_base_domain:
+        type: str
+        required: true
+        description: Base DNS domain used for the service hostnames.
+      nginx_certificate_mode:
+        type: str
+        choices:
+          - letsencrypt
+          - generated
+        description: Certificate source.
+      nginx_cert_name:
+        type: str
+        description: Certbot certificate name.
+      nginx_elasticsearch_host:
+        type: str
+        description: Elasticsearch reverse-proxy hostname.
+      nginx_s3_host:
+        type: str
+        description: Garage S3 reverse-proxy hostname.
+      nginx_enable_elasticsearch:
+        type: bool
+        description: Publish the Elasticsearch virtual host.
+      nginx_enable_s3:
+        type: bool
+        description: Publish the Garage S3 virtual host.
+      nginx_listen_address:
+        type: str
+        description: Address NGINX listens on.
+      nginx_verify_address:
+        type: str
+        description: Address used for local verification.
+      nginx_allowed_cidrs:
+        type: list
+        elements: str
+        description: Private or VPN source CIDRs allowed to reach port 443.
+      nginx_manage_firewall:
+        type: bool
+        description: Manage firewalld rules.
+      nginx_firewall_zone:
+        type: str
+        description: firewalld zone.
+      nginx_verify_upstreams:
+        type: bool
+        description: Verify upstream proxy routing during role verification.
+      nginx_service_name:
+        type: str
+        description: NGINX systemd service name.
+      nginx_packages:
+        type: list
+        elements: str
+        description: Base packages.
+      nginx_elasticsearch_upstream:
+        type: str
+        description: Elasticsearch upstream URL.
+      nginx_elasticsearch_ca_source:
+        type: str
+        description: CA certificate used to verify the Elasticsearch upstream.
+      nginx_elasticsearch_ca_path:
+        type: str
+        description: Local copy of the Elasticsearch CA.
+      nginx_elasticsearch_client_max_body_size:
+        type: str
+        description: Maximum Elasticsearch request body.
+      nginx_s3_upstream:
+        type: str
+        description: Garage S3 upstream URL.
+      nginx_s3_client_max_body_size:
+        type: str
+        description: Maximum S3 request body; 0 means unlimited.
+      nginx_tls_dir:
+        type: str
+        description: TLS directory served by NGINX.
+      nginx_tls_cert_path:
+        type: str
+        description: TLS certificate chain path.
+      nginx_tls_key_path:
+        type: str
+        description: TLS private key path.
+      nginx_tls_ca_path:
+        type: str
+        description: Generated CA path.
+      nginx_certificate_common_name:
+        type: str
+        description: Generated certificate common name.
+      nginx_certificate_validity_days:
+        type: int
+        description: Generated server certificate validity.
+      nginx_generated_ca_validity_days:
+        type: int
+        description: Generated CA validity.
+      nginx_verify_ca_cert:
+        type: str
+        description: CA bundle used for local curl verification.
+      nginx_ssl_protocols:
+        type: str
+        description: TLS protocol list.
+      nginx_ssl_ciphers:
+        type: str
+        description: TLS cipher configuration.
+      nginx_hsts_max_age:
+        type: int
+        description: HSTS max-age.
+      nginx_worker_connections:
+        type: int
+        description: NGINX worker connections.
+      nginx_letsencrypt_email:
+        type: str
+        description: Let's Encrypt account email.
+      nginx_cloudflare_api_token:
+        type: str
+        no_log: true
+        description: Cloudflare API token for DNS-01.
+      nginx_cloudflare_credentials_path:
+        type: str
+        description: Certbot Cloudflare credentials file.
+      nginx_certbot_venv:
+        type: str
+        description: Certbot virtualenv.
+      nginx_certbot_version:
+        type: str
+        description: Pinned Certbot version.
+      nginx_certbot_dns_cloudflare_version:
+        type: str
+        description: Pinned Cloudflare plugin version.
+      nginx_certbot_packages:
+        type: list
+        elements: str
+        description: Packages required by Certbot.
+      nginx_certbot_propagation_seconds:
+        type: int
+        description: DNS propagation wait.
+      nginx_certbot_renew_on_calendar:
+        type: str
+        description: Renewal timer schedule.
+      nginx_deploy_hook_path:
+        type: str
+        description: Certificate deploy hook path.

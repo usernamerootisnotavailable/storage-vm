@@ -1,0 +1,44 @@
+---
+- name: Read the SELinux mode
+  ansible.builtin.command:
+    argv:
+      - getenforce
+  register: nginx_selinux_mode
+  changed_when: false
+  check_mode: false
+  when: not ansible_check_mode
+
+- name: Apply NGINX SELinux policy
+  when:
+    - not ansible_check_mode
+    - nginx_selinux_mode.stdout | default('Disabled') in ['Enforcing', 'Permissive']
+  block:
+    - name: Label the NGINX TLS directory
+      community.general.sefcontext:
+        target: "{{ nginx_tls_dir }}(/.*)?"
+        setype: httpd_config_t
+        state: present
+
+    - name: Apply the NGINX TLS file contexts
+      ansible.builtin.command:
+        argv:
+          - restorecon
+          - -R
+          - "{{ nginx_tls_dir }}"
+      changed_when: false
+
+    - name: Label the Elasticsearch HTTP port for NGINX
+      community.general.seport:
+        ports: "{{ nginx_elasticsearch_upstream_port }}"
+        proto: tcp
+        setype: http_port_t
+        state: present
+      when: nginx_enable_elasticsearch | bool
+
+    - name: Label the Garage S3 port for NGINX
+      community.general.seport:
+        ports: "{{ nginx_s3_upstream_port }}"
+        proto: tcp
+        setype: http_port_t
+        state: present
+      when: nginx_enable_s3 | bool

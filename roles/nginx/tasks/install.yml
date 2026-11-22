@@ -1,0 +1,19 @@
+---
+- name: Install NGINX packages
+  ansible.builtin.dnf:
+    name: "{{ nginx_packages }}"
+    state: present
+
+- name: Install Certbot support packages
+  ansible.builtin.dnf:
+    name: "{{ nginx_certbot_packages }}"
+    state: present
+  when: nginx_certificate_mode == 'letsencrypt'
+
+- name: Ensure the NGINX TLS directory exists
+  ansible.builtin.file:
+    path: "{{ nginx_tls_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
