@@ -40,6 +40,6 @@ The role refuses to configure firewalld with an empty SSH CIDR list.
 
 ## Notes
 
-- `common_manage_time` and `common_firewall_enabled` are capability flags. They are false only in the Docker development harness.
-- SELinux is never set permissive or disabled by this role.
+- `common_manage_time`, `common_firewall_enabled`, and `common_require_selinux` are capability flags. The first two are false and the last is false only in the Docker development harness, where the host kernel controls those facilities.
+- SELinux is never set permissive or disabled by this role. In production, `common_require_selinux` defaults to true and fails the run if SELinux is disabled.
 - The automation user must exist before SSH hardening is applied. It is provisioned outside this role.
