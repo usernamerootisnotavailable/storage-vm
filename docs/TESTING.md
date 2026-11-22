@@ -73,6 +73,11 @@ Each implemented role has `molecule/default/` with:
 
 Molecule's `test` sequence includes idempotence: it runs converge a second time and fails if anything changes.
 
+Each scenario sets `ANSIBLE_ROLES_PATH` to the repository `roles/` directory.
+Molecule runs from `roles/<role>`, so the relative `roles_path` in
+`ansible.cfg` would otherwise resolve inside the role directory and fail the
+syntax stage before the container is created.
+
 The scenarios disable only container-incompatible capabilities:
 
 ```yaml

@@ -107,11 +107,14 @@ jobs:
         run: docker build -t storage-host/almalinux10-ansible:10 docker/dev
       - name: Run the Molecule scenario
         working-directory: roles/${{ matrix.role }}
-        run: molecule test
+        run: |
+          set -o pipefail
+          molecule test 2>&1 | tee "${RUNNER_TEMP}/molecule-${{ matrix.role }}.log"
       - name: Collect Molecule diagnostics
         if: failure()
         working-directory: roles/${{ matrix.role }}
         run: |
+          log="${RUNNER_TEMP}/molecule-${{ matrix.role }}.log"
           molecule list || true
           docker ps -a
           for container in $(docker ps -aq --filter label=owner=molecule); do
@@ -119,6 +122,17 @@ jobs:
             docker logs "${container}" || true
             echo "::endgroup::"
           done
+          if [[ -f "${log}" ]]; then
+            {
+              echo "## Molecule (${{ matrix.role }}) failure"
+              echo '```text'
+              tail -n 120 "${log}"
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+            message="$(sed -e 's/\x1B\[[0-9;]*[mK]//g' -e 's/%/%25/g' "${log}" \
+              | tr -d '\r' | tail -n 60 | tr '\n' ' ' | cut -c1-5000)"
+            echo "::error title=Molecule (${{ matrix.role }}) failure::${message}"
+          fi
 
   integration:
     name: Full-stack integration
@@ -141,12 +155,26 @@ jobs:
       - name: Raise vm.max_map_count for Elasticsearch
         run: sudo sysctl -w vm.max_map_count=262144
       - name: Run the integration test
-        run: ./scripts/integration-test.sh
+        run: |
+          set -o pipefail
+          ./scripts/integration-test.sh 2>&1 | tee "${RUNNER_TEMP}/integration.log"
       - name: Collect integration diagnostics
         if: failure()
         env:
           DEV_SSH_PUBKEY: /dev/null
         run: |
+          log="${RUNNER_TEMP}/integration.log"
           docker compose -f docker/dev/compose.yml ps || true
           docker compose -f docker/dev/compose.yml logs || true
           docker ps -a
+          if [[ -f "${log}" ]]; then
+            {
+              echo "## Integration failure"
+              echo '```text'
+              tail -n 120 "${log}"
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+            message="$(sed -e 's/\x1B\[[0-9;]*[mK]//g' -e 's/%/%25/g' "${log}" \
+              | tr -d '\r' | tail -n 60 | tr '\n' ' ' | cut -c1-5000)"
+            echo "::error title=Integration failure::${message}"
+          fi
