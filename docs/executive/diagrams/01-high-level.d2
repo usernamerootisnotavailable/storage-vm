@@ -1,0 +1,35 @@
+# Storage Host — high-level context
+# A four-actor view of what talks to what, and when.
+direction: down
+
+classes: {
+  n: {style: {fill: "#FFFFFF"; stroke: "#94A3B8"; font-color: "#0F172A"; border-radius: 12; font-size: 48}}
+  c: {style: {fill: "#F0FDFA"; stroke: "#0F766E"; font-color: "#134E4A"; border-radius: 12; font-size: 46}}
+  h: {style: {fill: "#F8FAFC"; stroke: "#1E293B"; stroke-width: 2; border-radius: 18; font-color: "#0B1F33"; font-size: 46; shadow: true}}
+  e: {style: {fill: "#FFFBEB"; stroke: "#B45309"; font-color: "#78350F"; border-radius: 12; font-size: 44}}
+  d: {style: {fill: "#F8FAFC"; stroke: "#94A3B8"; stroke-dash: 4; font-color: "#475569"; border-radius: 12; font-size: 40}}
+  deploy: {style: {stroke: "#1D4ED8"; stroke-width: 4; font-color: "#1D4ED8"; font-size: 38}}
+  cert: {style: {stroke: "#B45309"; stroke-width: 4; stroke-dash: 4; font-color: "#92400E"; font-size: 38}}
+  runtime: {style: {stroke: "#0F766E"; stroke-width: 4; font-color: "#0F766E"; font-size: 38}}
+  planned: {style: {stroke: "#64748B"; stroke-width: 3; stroke-dash: 6; font-color: "#475569"; font-size: 36}}
+}
+
+clients: "Private clients\nsearch · S3 · DB · operators" {class: c}
+controller: "Controller / CI\nAnsible + SOPS/age" {class: n}
+
+host: "storage01 · AlmaLinux 10\nNGINX :443 (private/VPN) → ES / Garage\nPostgreSQL · MariaDB · Certbot\n5  ES snapshots → Garage · local volumes" {class: h}
+
+cert: "Cloudflare + Let's Encrypt\nDNS-01 certificates" {class: e}
+backup: "Off-host backup\nplanned" {class: d}
+
+# 1 — deploy
+controller -> host: "1  Deploy · SSH 22\non commit + approval" {class: deploy}
+
+# 2 — certificates
+host -> cert: "2  DNS-01 / ACME\nfirst deploy + 2x daily" {class: cert}
+
+# 3–4 — requests
+clients -> host: "3–4  requests · continuous\nHTTPS 443 / DB TLS" {class: runtime}
+
+# 5 — snapshots are local; 6 — recovery is planned
+host -> backup: "6  off-host backup\nplanned daily" {class: planned}
