@@ -28,14 +28,14 @@ provisioner:
         common_firewall_enabled: false
         common_require_selinux: false
         garage_rpc_secret: >-
-          {{ lookup('password', '/tmp/storage-host-molecule-garage-rpc length=64 chars=hexdigits') }}
+          {{ lookup('password', '/tmp/storage-host-molecule-garage-rpc length=64 chars=1234567890abcdef') }}
         garage_admin_token: >-
-          {{ lookup('password', '/tmp/storage-host-molecule-garage-admin length=64 chars=hexdigits') }}
+          {{ lookup('password', '/tmp/storage-host-molecule-garage-admin length=64 chars=1234567890abcdef') }}
         storage_s3_bucket: elasticsearch-snapshots
         storage_s3_access_key: >-
-          {{ lookup('password', '/tmp/storage-host-molecule-s3-key length=16 chars=hexdigits') }}
+          {{ lookup('password', '/tmp/storage-host-molecule-s3-key length=16 chars=1234567890abcdef') }}
         storage_s3_secret_key: >-
-          {{ lookup('password', '/tmp/storage-host-molecule-s3-secret length=64 chars=hexdigits') }}
+          {{ lookup('password', '/tmp/storage-host-molecule-s3-secret length=64 chars=1234567890abcdef') }}
         garage_node_capacity_bytes: 1073741824
   playbooks:
     prepare: prepare.yml

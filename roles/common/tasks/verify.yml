@@ -24,6 +24,20 @@
     fail_msg: The managed SSH configuration is missing or has the wrong mode.
     quiet: true
 
+- name: Read the SSH hardening file
+  ansible.builtin.slurp:
+    src: "{{ common_ssh_config_file }}"
+  register: common_sshd_config
+
+- name: Assert the SSH policy is applied
+  ansible.builtin.assert:
+    that:
+      - "('PermitRootLogin ' ~ common_ssh_permit_root_login) in (common_sshd_config.content | b64decode)"
+      - "('PasswordAuthentication ' ~ common_ssh_password_authentication) in (common_sshd_config.content | b64decode)"
+      - "'AllowUsers' in (common_sshd_config.content | b64decode)"
+    fail_msg: The SSH hardening policy is incomplete.
+    quiet: true
+
 - name: Verify the managed timezone
   ansible.builtin.command:
     argv:

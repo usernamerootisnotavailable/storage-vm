@@ -8,17 +8,3 @@
       ansible.builtin.include_role:
         name: common
         tasks_from: verify
-
-    - name: Verify the SSH hardening file
-      ansible.builtin.slurp:
-        src: "{{ common_ssh_config_file }}"
-      register: common_sshd_config
-
-    - name: Assert the SSH policy is applied
-      ansible.builtin.assert:
-        that:
-          - "'PermitRootLogin no' in (common_sshd_config.content | b64decode)"
-          - "'PasswordAuthentication no' in (common_sshd_config.content | b64decode)"
-          - "'AllowUsers' in (common_sshd_config.content | b64decode)"
-        fail_msg: The SSH hardening policy is incomplete.
-        quiet: true

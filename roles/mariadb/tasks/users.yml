@@ -6,7 +6,6 @@
       ansible.mariadb.mariadb_query:
         login_unix_socket: "{{ mariadb_socket }}"
         login_user: root
-        check_implicit_admin: true
         query: >-
           SELECT plugin
           FROM mysql.user
@@ -19,7 +18,6 @@
       ansible.mariadb.mariadb_query:
         login_unix_socket: "{{ mariadb_socket }}"
         login_user: root
-        check_implicit_admin: true
         query: "ALTER USER 'root'@'localhost' IDENTIFIED VIA unix_socket"
       when: mariadb_root_plugin.query_result[0].plugin | default('') != 'unix_socket'
       changed_when: true
@@ -29,7 +27,6 @@
       ansible.mariadb.mariadb_query:
         login_unix_socket: "{{ mariadb_socket }}"
         login_user: root
-        check_implicit_admin: true
         query: "SELECT User, Host FROM mysql.user WHERE User = ''"
       register: mariadb_anonymous_users
       changed_when: false
@@ -38,7 +35,6 @@
       ansible.mariadb.mariadb_query:
         login_unix_socket: "{{ mariadb_socket }}"
         login_user: root
-        check_implicit_admin: true
         query: "DROP USER IF EXISTS ''@'{{ item.Host }}'"
       loop: "{{ mariadb_anonymous_users.query_result }}"
       loop_control:
@@ -53,7 +49,6 @@
         state: absent
         login_unix_socket: "{{ mariadb_socket }}"
         login_user: root
-        check_implicit_admin: true
 
     - name: Remove the test database
       ansible.mariadb.mariadb_db:
@@ -61,7 +56,6 @@
         state: absent
         login_unix_socket: "{{ mariadb_socket }}"
         login_user: root
-        check_implicit_admin: true
 
     - name: Create the application database
       ansible.mariadb.mariadb_db:
@@ -70,7 +64,6 @@
         collation: "{{ mariadb_collation }}"
         login_unix_socket: "{{ mariadb_socket }}"
         login_user: root
-        check_implicit_admin: true
         state: present
 
     - name: Create the application users
@@ -82,7 +75,6 @@
         tls_requires: "{{ {'SSL': true} if item != 'localhost' else omit }}"
         login_unix_socket: "{{ mariadb_socket }}"
         login_user: root
-        check_implicit_admin: true
         state: present
       loop: "{{ mariadb_app_hosts }}"
       loop_control:
