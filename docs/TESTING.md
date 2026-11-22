@@ -21,7 +21,7 @@ CI is the authoritative test environment. A local pass is necessary but not suff
 make lint          # yamllint, ansible-lint, policy checks
 make syntax        # syntax-check every playbook
 make test-image    # build the AlmaLinux 10 systemd test image
-make molecule      # Molecule for common and postgresql
+make molecule      # Molecule for all five roles
 make integration   # full site.yml on the dev container, twice
 make test          # lint + syntax + molecule
 ```
@@ -79,6 +79,9 @@ common_manage_time: false
 common_firewall_enabled: false
 common_require_selinux: false
 postgresql_manage_firewall: false
+mariadb_manage_firewall: false
+elasticsearch_manage_firewall: false
+elasticsearch_manage_sysctl: false
 ```
 
 SELinux tasks detect `getenforce` and skip when the container reports `Disabled`. This branch is not exercised in CI.
@@ -94,13 +97,15 @@ The same file is reused by converge and verify. It is never committed.
 
 ## Full-stack integration
 
-The integration target starts the development container, generates an ephemeral test password, applies `site.yml`, runs verification, applies again, and asserts `changed=0`.
+The integration target starts the development container, generates ephemeral credentials for every service, applies `site.yml`, runs verification, applies again, and asserts `changed=0`. The verification includes a Garage-backed Elasticsearch snapshot repository check.
 
 ```bash
 make integration
 ```
 
-The integration job must not use production secrets. If SOPS files exist, the job either uses a development key supplied by the repository environment or an ephemeral test inventory overlay.
+The integration job must not use production secrets. It supplies test credentials through an ephemeral extra-vars file and never touches SOPS-encrypted production data.
+
+The Docker host must provide `vm.max_map_count=262144`; the integration and `dev-up` scripts attempt to raise it when passwordless sudo is available.
 
 ## GitHub Actions
 
@@ -108,8 +113,8 @@ The integration job must not use production secrets. If SOPS files exist, the jo
 
 1. **lint** — `yamllint`, `ansible-lint`, policy checks, syntax check
 2. **secret-scan** — `gitleaks` with a pinned binary
-3. **molecule** — matrix over `common` and `postgresql`
-4. **integration** — full `site.yml` on the AlmaLinux 10 container
+3. **molecule** — matrix over `common`, `postgresql`, `mariadb`, `garage`, and `elasticsearch`
+4. **integration** — full `site.yml` on the AlmaLinux 10 container, including the Garage S3 snapshot repository
 
 Requirements:
 
@@ -146,7 +151,8 @@ Do not hide a change with `changed_when: false` unless the task is genuinely rea
 
 Docker cannot validate:
 
-- SELinux enforcing behavior and file contexts
+- SELinux enforcing behavior and file contexts, including the MariaDB vendor policy
+- Garage and Elasticsearch unconfined SELinux domains
 - nftables/firewalld behavior against a real network
 - Real disk layout, I/O, or filesystem tuning
 - SSH access from an external network

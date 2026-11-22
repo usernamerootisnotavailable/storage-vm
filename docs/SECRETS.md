@@ -80,7 +80,12 @@ Using the wrong key fails closed during decryption. This is intentional.
 
 The script:
 
-- Generates random values with `openssl`.
+- Generates random values with `openssl`:
+  - PostgreSQL application password
+  - MariaDB application password
+  - Garage RPC secret and admin token
+  - Shared S3 access key and secret key
+  - Elasticsearch bootstrap password
 - Writes a temporary plaintext file with mode `0600`.
 - Encrypts it to `inventories/<env>/group_vars/storage/secrets.sops.yml`.
 - Removes the temporary file on exit.
@@ -106,17 +111,29 @@ Only secrets belong in `secrets.sops.yml`. Every value is prefixed with `secret_
 
 ```yaml
 secret_postgresql_app_password: "..."
+secret_mariadb_app_password: "..."
+secret_garage_rpc_secret: "..."
 secret_garage_admin_token: "..."
-secret_elasticsearch_keystore_password: "..."
+secret_storage_s3_access_key: "..."
+secret_storage_s3_secret_key: "..."
+secret_elasticsearch_bootstrap_password: "..."
 ```
 
 Map them to role variables in `group_vars/storage/main.yml`:
 
 ```yaml
 postgresql_app_password: "{{ secret_postgresql_app_password }}"
+mariadb_app_password: "{{ secret_mariadb_app_password }}"
+garage_rpc_secret: "{{ secret_garage_rpc_secret }}"
+garage_admin_token: "{{ secret_garage_admin_token }}"
+storage_s3_access_key: "{{ secret_storage_s3_access_key }}"
+storage_s3_secret_key: "{{ secret_storage_s3_secret_key }}"
+elasticsearch_bootstrap_password: "{{ secret_elasticsearch_bootstrap_password }}"
 ```
 
 Do not use `secret_*` names inside roles. Roles consume the mapped variables.
+
+Elasticsearch stores the bootstrap password and the shared S3 credentials in its keystore. Garage imports the shared S3 key through its admin API. Database passwords and S3 keys never appear in process arguments or configuration templates. Garage's RPC secret and admin token must be present in `/etc/garage.toml`; that file is mode `0640`, owned `root:garage`, and readable only by the service group.
 
 ## Output protection
 
@@ -148,7 +165,7 @@ Masking is defense in depth, not permission to print secrets:
 
 ## Rotation
 
-### Rotate a secret value
+### Rotate a database password
 
 1. Change the value with `sops`.
 2. Apply the role with the appropriate tag.
@@ -156,6 +173,34 @@ Masking is defense in depth, not permission to print secrets:
 4. Revoke the old credential at the source.
 
 For PostgreSQL, password changes are skipped by default to preserve idempotence. Set `postgresql_rotate_passwords: true` for the rotation run, then return it to `false`.
+
+MariaDB application users are updated by `ansible.mariadb.mariadb_user` when the password changes.
+
+### Rotate the Elasticsearch elastic password
+
+The bootstrap password only applies when the cluster is first initialized. To rotate it:
+
+1. Use the Elasticsearch password API or `elasticsearch-reset-password` for the `elastic` user.
+2. Update `secret_elasticsearch_bootstrap_password` to the same value in SOPS.
+3. Verify authentication.
+4. Keep the keystore's `bootstrap.password` entry consistent for future recovery documentation.
+
+### Rotate the Garage S3 key
+
+1. Generate a new 16-hex access key and 64-hex secret.
+2. Update the shared S3 secrets in SOPS.
+3. Apply the Elasticsearch role with `elasticsearch_rotate_s3_secrets: true`; this rewrites the keystore entries and restarts Elasticsearch. Return the setting to `false`.
+4. Verify the snapshot repository.
+5. Remove the old Garage key after verifying snapshots.
+
+Garage key IDs are immutable. If the access key ID changes, import the new key and grant it bucket permissions before removing the old one.
+
+### Rotate the Garage RPC and admin secrets
+
+1. Update the SOPS values.
+2. Apply the Garage role.
+3. Verify the admin API and layout.
+4. Elasticsearch does not use these secrets; it uses the S3 key only.
 
 ### Rotate an age identity
 

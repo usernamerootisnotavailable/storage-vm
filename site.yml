@@ -5,10 +5,18 @@
 - name: Apply the AlmaLinux 10 baseline
   import_playbook: playbooks/common.yml
 
-# Future services are inserted here in dependency order:
-# MariaDB, Garage, Elasticsearch.
 - name: Configure PostgreSQL
   import_playbook: playbooks/postgresql.yml
+
+- name: Configure MariaDB
+  import_playbook: playbooks/mariadb.yml
+
+# Garage must be ready before Elasticsearch registers its snapshot repository.
+- name: Configure Garage
+  import_playbook: playbooks/garage.yml
+
+- name: Configure Elasticsearch
+  import_playbook: playbooks/elasticsearch.yml
 
 - name: Verify the storage host
   import_playbook: playbooks/verify.yml

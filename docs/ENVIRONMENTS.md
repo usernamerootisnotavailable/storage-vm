@@ -81,9 +81,10 @@ The development container sets:
 common_manage_time: false
 common_firewall_enabled: false
 common_require_selinux: false
+elasticsearch_manage_sysctl: false
 ```
 
-These are explicit capability flags, not environment-name branches. They exist because a container shares the host kernel and cannot reliably run chrony, nftables, firewalld, or SELinux enforcement. Production sets all three to `true`.
+These are explicit capability flags, not environment-name branches. They exist because a container shares the host kernel and cannot reliably run chrony, nftables, firewalld, SELinux enforcement, or kernel sysctl changes. Production sets them to `true`; the Docker host must provide `vm.max_map_count=262144` for Elasticsearch.
 
 They must never be used to bypass a failing security task in production. Any change that relies on the difference requires a real-host verification step.
 

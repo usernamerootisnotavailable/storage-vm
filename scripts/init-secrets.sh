@@ -34,9 +34,22 @@ temporary_output="${output}.tmp"
 trap 'rm -f "${plaintext}" "${temporary_output}"' EXIT
 chmod 0600 "${plaintext}"
 
-password="$(openssl rand -hex 32)"
+postgresql_password="$(openssl rand -hex 32)"
+mariadb_password="$(openssl rand -hex 32)"
+garage_rpc_secret="$(openssl rand -hex 32)"
+garage_admin_token="$(openssl rand -hex 32)"
+s3_access_key="$(openssl rand -hex 8)"
+s3_secret_key="$(openssl rand -hex 32)"
+elasticsearch_bootstrap_password="$(openssl rand -hex 32)"
+
 cat > "${plaintext}" <<EOF
-secret_postgresql_app_password: "${password}"
+secret_postgresql_app_password: "${postgresql_password}"
+secret_mariadb_app_password: "${mariadb_password}"
+secret_garage_rpc_secret: "${garage_rpc_secret}"
+secret_garage_admin_token: "${garage_admin_token}"
+secret_storage_s3_access_key: "${s3_access_key}"
+secret_storage_s3_secret_key: "${s3_secret_key}"
+secret_elasticsearch_bootstrap_password: "${elasticsearch_bootstrap_password}"
 EOF
 
 if ! sops --encrypt \

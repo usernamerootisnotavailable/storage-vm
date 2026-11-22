@@ -1,3 +1,20 @@
 ---
 postgresql_app_password: "{{ secret_postgresql_app_password | mandatory }}"
 postgresql_backup_enabled: false
+
+mariadb_app_password: "{{ secret_mariadb_app_password | mandatory }}"
+mariadb_backup_enabled: false
+
+storage_s3_endpoint: "http://127.0.0.1:3900"
+storage_s3_region: "garage"
+storage_s3_bucket: "elasticsearch-snapshots"
+storage_s3_access_key: "{{ secret_storage_s3_access_key | mandatory }}"
+storage_s3_secret_key: "{{ secret_storage_s3_secret_key | mandatory }}"
+
+garage_rpc_secret: "{{ secret_garage_rpc_secret | mandatory }}"
+garage_admin_token: "{{ secret_garage_admin_token | mandatory }}"
+garage_node_capacity_bytes: 1073741824
+
+elasticsearch_bootstrap_password: "{{ secret_elasticsearch_bootstrap_password | mandatory }}"
+elasticsearch_heap_size: "512m"
+elasticsearch_manage_sysctl: false

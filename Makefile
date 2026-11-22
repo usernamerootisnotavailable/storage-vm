@@ -14,7 +14,7 @@ export ANSIBLE_CONFIG := $(CURDIR)/ansible.cfg
 export ANSIBLE_COLLECTIONS_PATH := $(COLLECTIONS)
 export PATH := $(VENV)/bin:$(PATH)
 
-.PHONY: help deps lint syntax test-image molecule dev-up dev-down deploy-dev-check deploy-dev verify integration secrets-dev secrets-prod test clean
+.PHONY: help deps lint syntax sysctl test-image molecule dev-up dev-down deploy-dev-check deploy-dev verify integration secrets-dev secrets-prod test clean
 
 help:
 	@echo "Storage Host targets:"
@@ -52,12 +52,26 @@ syntax: deps
 		$(ANSIBLE_PLAYBOOK) -i $(INVENTORY) "$$playbook" --syntax-check; \
 	done
 
+sysctl:
+	@current=$$(sysctl -n vm.max_map_count 2>/dev/null || echo 0); \
+	if [ "$$current" -lt 262144 ]; then \
+		if sudo -n true 2>/dev/null; then \
+			sudo sysctl -w vm.max_map_count=262144; \
+		else \
+			echo "WARNING: vm.max_map_count is $$current; Elasticsearch may fail." >&2; \
+		fi; \
+	fi
+
 test-image:
 	docker build -t storage-host/almalinux10-ansible:10 docker/dev
 
-molecule: test-image
-	cd roles/common && $(MOLECULE) test
-	cd roles/postgresql && $(MOLECULE) test
+molecule: test-image sysctl
+	@set -e; \
+	for role in common postgresql mariadb garage elasticsearch; do \
+		echo "== Molecule: $$role"; \
+		cd "$(CURDIR)/roles/$$role"; \
+		$(MOLECULE) test; \
+	done
 
 dev-up:
 	./scripts/dev-up.sh

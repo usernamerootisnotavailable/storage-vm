@@ -2,10 +2,10 @@
 
 Ansible configuration for an AlmaLinux 10 storage host running:
 
-- **Elasticsearch** 9.x
+- **Elasticsearch** 9.5
 - **PostgreSQL** 18
 - **MariaDB** 11.8
-- **Garage** 2.x (S3-compatible object storage)
+- **Garage** 2.5 (S3-compatible object storage)
 
 One host runs all services per environment. Development and production use the same roles, playbooks, and variable names; only inventory data, credentials, sizing, and endpoints differ.
 
@@ -16,12 +16,12 @@ One host runs all services per environment. Development and production use the s
 | Documentation and repository scaffolding | Implemented |
 | `common` role (AlmaLinux baseline) | Implemented |
 | PostgreSQL 18 role | Implemented |
-| MariaDB 11.8 role | Planned |
-| Garage 2.x role | Planned |
-| Elasticsearch 9.x role | Planned |
-| Full-stack integration | Common + PostgreSQL only |
+| MariaDB 11.8 role | Implemented |
+| Garage 2.5 role | Implemented |
+| Elasticsearch 9.5 role | Implemented |
+| Full-stack integration | All services and Garage snapshots |
 
-`site.yml` currently applies `common`, PostgreSQL, and verification. It will grow as the remaining roles are added.
+`site.yml` applies `common`, PostgreSQL, MariaDB, Garage, Elasticsearch, and verification in dependency order. Garage is configured before Elasticsearch so the snapshot repository can be registered and verified.
 
 ## Supported platform
 
@@ -40,6 +40,8 @@ On the controller:
 - The collections pinned in `requirements.yml`
 - `sops` 3.12+ with `age` for encrypted variables
 - Docker with a running daemon for local Molecule and integration tests
+- `vm.max_map_count=262144` on the Docker host for Elasticsearch; `make dev-up`
+  attempts to raise it when passwordless sudo is available
 - `make`, `git`, and `ssh`
 
 On managed hosts:
@@ -99,6 +101,9 @@ Production deployment requires approval, a backup, and the production age key. S
 | [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) | Change workflow and review checklist |
 | [`docs/COMPONENTS.md`](docs/COMPONENTS.md) | Component contracts and verified platform data |
 | [`docs/components/postgresql.md`](docs/components/postgresql.md) | PostgreSQL role reference |
+| [`docs/components/mariadb.md`](docs/components/mariadb.md) | MariaDB role reference |
+| [`docs/components/garage.md`](docs/components/garage.md) | Garage role reference |
+| [`docs/components/elasticsearch.md`](docs/components/elasticsearch.md) | Elasticsearch role reference |
 
 ## Non-negotiables
 

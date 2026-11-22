@@ -21,7 +21,11 @@ for document in \
   docs/ENVIRONMENTS.md \
   docs/TESTING.md \
   docs/CONTRIBUTING.md \
-  docs/COMPONENTS.md; do
+  docs/COMPONENTS.md \
+  docs/components/postgresql.md \
+  docs/components/mariadb.md \
+  docs/components/garage.md \
+  docs/components/elasticsearch.md; do
   [[ -f "${document}" ]] || fail "missing ${document}"
 done
 

@@ -4,10 +4,10 @@
 
 This repository configures a single AlmaLinux 10 host per environment with four storage services:
 
-- Elasticsearch for search and analytics
-- PostgreSQL for relational data
-- MariaDB for relational data
-- Garage for S3-compatible object storage
+- Elasticsearch 9 for search and analytics
+- PostgreSQL 18 for relational data
+- MariaDB 11.8 for relational data
+- Garage 2.5 for S3-compatible object storage
 
 The same roles and playbooks run in development and production. Environment differences are confined to inventory, credentials, sizing, endpoints, and capability flags required by the test harness.
 
@@ -17,7 +17,7 @@ The same roles and playbooks run in development and production. Environment diff
 |---|---|---|
 | Secret management | SOPS + age | Encrypted `*.sops.yml` files are committed; age keys never enter the repository |
 | Environments | `dev` and `prod` | Identical inventory structure and logical hostnames |
-| Topology | One all-in-one host per environment | No clustering, replication, or multi-host orchestration |
+| Topology | One all-in-one host per environment | No clustering or multi-host orchestration |
 | Local validation | Docker AlmaLinux 10 systemd container | Fast role tests; SELinux and firewall require a real host |
 | CI | GitHub Actions | Lint, policy, secret scan, Molecule, integration |
 | Platform | AlmaLinux 10 x86_64 | No support for other distributions or architectures |
@@ -48,9 +48,10 @@ These decisions require an explicit architecture review to change.
 ```
 
 - All services run on `storage01` in both environments.
-- Service listeners bind to loopback by default. Any listener reachable from another host must be explicitly allowed by CIDR and protected by TLS.
-- Elasticsearch snapshots and database backups may use Garage over loopback, but Garage on the same host is **not** a disaster-recovery copy. Production requires an off-host backup target.
-- There is no high availability. A host loss takes every service down. This is accepted for the current scope and must be revisited before an availability requirement is introduced.
+- Service listeners bind loopback by default. Any listener reachable from another host must be explicitly allowed by CIDR and protected by TLS.
+- Garage has no native TLS. Its S3, admin, and RPC listeners are loopback-only; external S3 requires a TLS reverse proxy that is not part of this repository.
+- Elasticsearch snapshots are written to Garage over loopback.
+- There is no high availability. A host loss takes every service down. Production requires tested off-host backups.
 
 ## Repository layout
 
@@ -60,11 +61,11 @@ requirements.yml            Pinned Ansible collections
 requirements-dev.txt        Pinned lint and test tooling
 site.yml                    Full host convergence
 playbooks/                  Per-role and verification playbooks
-roles/                      common, postgresql, and future service roles
+roles/                      common, postgresql, mariadb, garage, elasticsearch
 inventories/dev/            Development inventory and values
 inventories/prod/           Production inventory and values
 docker/dev/                 AlmaLinux 10 systemd development image
-scripts/                    Developer and policy tooling
+scripts/                    Developer, policy, and integration tooling
 docs/                       Normative project documentation
 ```
 
@@ -74,14 +75,17 @@ docs/                       Normative project documentation
 
 1. `common` — baseline OS, access, time, firewall, logging, SELinux
 2. `postgresql` — PostgreSQL 18
-3. `verify` — service health checks
+3. `mariadb` — MariaDB 11.8
+4. `garage` — Garage S3
+5. `elasticsearch` — Elasticsearch 9 and snapshot repository
+6. `verify` — service health checks
 
-MariaDB, Garage, and Elasticsearch playbooks will be inserted before verification when their roles land.
+Garage must run before Elasticsearch because Elasticsearch registers a Garage snapshot repository.
 
-Each service playbook targets the `storage` group and runs with `become: true`. Per-role tags allow targeted runs:
+Per-role tags allow targeted runs:
 
 ```bash
-ansible-playbook -i inventories/dev/hosts.yml site.yml --tags postgresql
+ansible-playbook -i inventories/dev/hosts.yml site.yml --tags elasticsearch
 ```
 
 ## Component summary
@@ -89,30 +93,46 @@ ansible-playbook -i inventories/dev/hosts.yml site.yml --tags postgresql
 | Component | Role | Default ports | Configuration | Data | Service unit | Source |
 |---|---|---|---|---|---|---|
 | PostgreSQL 18 | `postgresql` | 5432 | `/var/lib/pgsql/18/data/postgresql.conf` | `/var/lib/pgsql/18/data` | `postgresql-18.service` | PGDG EL10 repository |
-| MariaDB 11.8 | planned | 3306 | `/etc/my.cnf.d/` | `/var/lib/mysql` | `mariadb.service` | MariaDB EL10 repository |
-| Garage 2.x | planned | 3900 S3, 3901 RPC, 3902 web, 3903 admin | `/etc/garage.toml` | `/var/lib/garage` | `garage.service` | Upstream static binary |
-| Elasticsearch 9.x | planned | 9200 HTTP, 9300 transport | `/etc/elasticsearch/` | `/var/lib/elasticsearch` | `elasticsearch.service` | Elastic 9.x repository |
+| MariaDB 11.8 | `mariadb` | 3306 | `/etc/my.cnf.d/99-storage-host.cnf` | `/var/lib/mysql` | `mariadb.service` | MariaDB EL10 repository |
+| Garage 2.5 | `garage` | 3900 S3, 3901 RPC, 3903 admin | `/etc/garage.toml` | `/var/lib/garage` | `garage.service` | Pinned static binary |
+| Elasticsearch 9.5 | `elasticsearch` | 9200 HTTP, 9300 transport | `/etc/elasticsearch/elasticsearch.yml` | `/var/lib/elasticsearch` | `elasticsearch.service` | Elastic 9.x repository |
 
-Ports, paths, and package versions are variables. The table records defaults, not hardcoded facts.
+Ports, paths, and versions are variables. The table records defaults.
 
-See `docs/COMPONENTS.md` for verified source availability and per-component requirements.
+See `docs/COMPONENTS.md` for verified source data and per-component requirements.
 
 ## Role contract
 
-Every role must:
+Every role:
 
-- Have `defaults/main.yml`, `handlers/main.yml`, `meta/main.yml`, `meta/argument_specs.yml`, `tasks/main.yml`, and `README.md`.
-- Use a role-name prefix on all variables.
-- Keep environment data out of the role.
-- Validate required variables through `argument_specs`.
-- Support check mode, or document why a specific task does not.
-- Be idempotent on a second run.
-- Include a Molecule scenario under `molecule/default/`.
-- Install its own target-side dependencies; it must not assume another service role ran first.
-- Use handlers for service restarts.
-- Avoid `hostvars` reach-through. Cross-service values belong in inventory variables.
+- Has `defaults/main.yml`, `handlers/main.yml`, `meta/main.yml`, `meta/argument_specs.yml`, `tasks/main.yml`, and `README.md`.
+- Uses a role-name prefix on all variables.
+- Keeps environment data out of the role.
+- Validates required variables through `argument_specs`.
+- Supports check mode where practical, or documents the limitation.
+- Is idempotent on a second run.
+- Includes a Molecule scenario under `molecule/default/`.
+- Installs its own target-side dependencies.
+- Uses handlers for service restarts.
+- Avoids `hostvars` reach-through. Cross-service values use the shared inventory contract.
 
-`common` is always applied first in `site.yml`, but each service role must remain independently runnable for testing.
+`common` runs first in `site.yml`, but each service role remains independently runnable for testing.
+
+## Shared S3 contract
+
+Garage and Elasticsearch share:
+
+```yaml
+storage_s3_endpoint: "http://127.0.0.1:3900"
+storage_s3_region: "garage"
+storage_s3_bucket: "elasticsearch-snapshots"
+storage_s3_access_key: "{{ secret_storage_s3_access_key }}"
+storage_s3_secret_key: "{{ secret_storage_s3_secret_key }}"
+```
+
+Garage imports the key and creates the bucket. Elasticsearch stores the key in its keystore and registers the bucket as a snapshot repository.
+
+`disable_chunked_encoding` is required for Garage compatibility: Garage 2.5 rejects the AWS SDK's default aws-chunked trailer signatures.
 
 ## AlmaLinux 10 baseline
 
@@ -125,33 +145,35 @@ Every role must:
 - firewalld with explicit SSH source CIDRs
 - systemd-journald persistent logging
 - SELinux enforcement when the target reports SELinux enabled
-- Base packages required by later roles (`python3-libselinux`, `policycoreutils-python-utils`, `python3-firewall`, `python3-cryptography`)
+- Packages required by later roles
 
-Package repositories are configured by the role that needs them. PostgreSQL uses the PGDG repository; MariaDB and Elasticsearch will use their vendor repositories. All repositories require GPG verification.
+Package repositories are configured by the role that needs them. All vendor repositories require GPG verification or binary checksums.
 
 ## Security baseline
 
-- SELinux stays enforcing. Roles add file contexts and port labels rather than disabling enforcement.
+- SELinux stays enforcing. MariaDB installs its vendor policy module. Garage and Elasticsearch have no confined domain on AlmaLinux 10 and run unconfined; this is a documented gap.
 - firewalld default-denies inbound traffic. The broad SSH allowance is removed and replaced with source-CIDR rich rules.
 - Services bind loopback unless a documented client CIDR requires otherwise.
-- TLS is required for every listener reachable off-host.
-- Service processes run as dedicated users. Configuration containing credentials is mode `0600` or `0640`.
+- TLS is required for every listener reachable off-host. Garage has no native TLS and must stay on loopback.
+- Service processes run as dedicated users.
 - Secrets are decrypted on the controller and masked in Ansible output. They are never placed in process arguments or world-readable files.
 - SSH host keys are verified. Production uses `known_hosts`; development uses a project-local `known_hosts`.
-- Package installation verifies GPG signatures.
+- Package installation verifies GPG signatures or pinned checksums.
 
 ## Scope and risks
 
 - **Single point of failure:** one host per environment. Acceptable only with tested backups and a documented recovery objective.
-- **Backup locality:** backups stored only on the same host are not disaster recovery. Production needs an off-host target.
+- **Backup locality:** backups stored only on the same host are not disaster recovery. Production needs an off-host target for database dumps and Garage data.
+- **Garage exposure:** no native TLS. External S3 access requires a reverse proxy.
+- **SELinux gaps:** Garage and Elasticsearch run unconfined because AlmaLinux 10 has no matching vendor policy. MariaDB keeps enforcing with its vendor module.
 - **Container fidelity:** Docker validates packages, templates, services, and idempotence, but not SELinux enforcement, kernel firewall behavior, or real block devices. A real-host smoke test is required before production.
-- **Vendor support:** Elasticsearch 9.x repository accessibility is verified, but the RPM install on EL10 must be proven in the role's integration test. Garage is shipped as an upstream binary and requires checksum pinning.
-- **No HA:** Elasticsearch runs as a single node, PostgreSQL and MariaDB have no replicas, and Garage has a single-node layout.
+- **Vendor support:** Elasticsearch 9.5.6 and MariaDB 11.8.10 EL10 packages are verified, but full package installation remains a CI/real-host validation item.
+- **No HA:** Elasticsearch is a single node, PostgreSQL and MariaDB have no replicas, and Garage has a single-node layout.
 
 ## Adding a service
 
 1. Verify the vendor supports AlmaLinux 10 and add the source to `docs/COMPONENTS.md`.
-2. Pin the version in both environment `versions.yml` files.
+2. Pin the version and checksum in both environment `versions.yml` files.
 3. Create the role contract and argument specs.
 4. Add the Molecule scenario and verification tasks.
 5. Add the playbook and import it into `site.yml` before verification.

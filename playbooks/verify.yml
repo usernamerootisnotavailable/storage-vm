@@ -20,3 +20,27 @@
       tags:
         - verify
         - postgresql
+
+    - name: Verify MariaDB
+      ansible.builtin.include_role:
+        name: mariadb
+        tasks_from: verify
+      tags:
+        - verify
+        - mariadb
+
+    - name: Verify Garage
+      ansible.builtin.include_role:
+        name: garage
+        tasks_from: verify
+      tags:
+        - verify
+        - garage
+
+    - name: Verify Elasticsearch
+      ansible.builtin.include_role:
+        name: elasticsearch
+        tasks_from: verify
+      tags:
+        - verify
+        - elasticsearch

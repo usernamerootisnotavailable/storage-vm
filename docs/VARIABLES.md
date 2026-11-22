@@ -101,8 +101,10 @@ postgresql_allowed_cidrs:
 Capability flags for the test harness are explicit and named for the capability, not the environment:
 
 ```yaml
-common_manage_time: false        # disabled in the development container
-common_firewall_enabled: false   # disabled in the development container
+common_manage_time: false           # disabled in the development container
+common_firewall_enabled: false      # disabled in the development container
+common_require_selinux: false       # SELinux is not enforced inside Docker
+elasticsearch_manage_sysctl: false  # the Docker host provides vm.max_map_count
 ```
 
 These flags must never be used to weaken production. They are documented in `docs/ENVIRONMENTS.md`.
@@ -138,10 +140,26 @@ Use `ansible.builtin.assert` for invariants that argument specs cannot express:
 
 Assertions must explain the fix, not just state that a value is invalid.
 
+## Shared service contracts
+
+Cross-service values use explicit shared names rather than `hostvars` reach-through:
+
+```yaml
+storage_s3_endpoint: "http://127.0.0.1:3900"
+storage_s3_region: "garage"
+storage_s3_bucket: "elasticsearch-snapshots"
+storage_s3_access_key: "{{ secret_storage_s3_access_key }}"
+storage_s3_secret_key: "{{ secret_storage_s3_secret_key }}"
+```
+
+Garage and Elasticsearch consume these values. A role may default to a shared variable only with a safe fallback, and must document the contract in its README.
+
 ## Versions
 
 - Versions live in `inventories/<env>/group_vars/storage/versions.yml`.
-- Major versions are pinned. Patch updates are deliberate and tested.
+- Pin full versions where the vendor artifact is version-specific: MariaDB, Garage, Elasticsearch.
+- Pin PostgreSQL by major version and record the tested patch.
+- Garage requires both a version and its SHA256 checksum.
 - Never use `latest`, `*`, or an unpinned image tag.
 - Development and production must use the same versions except during a documented staged rollout.
 - A version change is a separate, reviewable change with a backup and rollback plan.

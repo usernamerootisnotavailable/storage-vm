@@ -9,12 +9,32 @@ export ANSIBLE_COLLECTIONS_PATH="${root}/collections"
 ansible_playbook="${ANSIBLE_PLAYBOOK:-ansible-playbook}"
 secret_file="${TMPDIR:-/tmp}/storage-host-dev-test-secrets.yml"
 
-if [[ ! -f "${secret_file}" ]]; then
+generate_secrets() {
   umask 077
   {
     echo "---"
     printf 'postgresql_app_password: "%s"\n' "$(openssl rand -hex 32)"
+    printf 'mariadb_app_password: "%s"\n' "$(openssl rand -hex 32)"
+    printf 'garage_rpc_secret: "%s"\n' "$(openssl rand -hex 32)"
+    printf 'garage_admin_token: "%s"\n' "$(openssl rand -hex 32)"
+    printf 'storage_s3_access_key: "%s"\n' "$(openssl rand -hex 8)"
+    printf 'storage_s3_secret_key: "%s"\n' "$(openssl rand -hex 32)"
+    printf 'elasticsearch_bootstrap_password: "%s"\n' "$(openssl rand -hex 32)"
   } > "${secret_file}"
+}
+
+if [[ ! -f "${secret_file}" ]] || ! grep -q '^mariadb_app_password:' "${secret_file}"; then
+  generate_secrets
+fi
+chmod 0600 "${secret_file}"
+
+max_map_count="$(sysctl -n vm.max_map_count 2>/dev/null || echo 0)"
+if [[ "${max_map_count}" -lt 262144 ]]; then
+  if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+    sudo sysctl -w vm.max_map_count=262144 >/dev/null
+  else
+    echo "WARNING: vm.max_map_count is ${max_map_count}; Elasticsearch may fail to start." >&2
+  fi
 fi
 
 if [[ "${INTEGRATION_RESET:-true}" == "true" ]]; then
@@ -22,7 +42,7 @@ if [[ "${INTEGRATION_RESET:-true}" == "true" ]]; then
 fi
 ./scripts/dev-up.sh
 
-echo "Applying site.yml with an ephemeral test secret"
+echo "Applying site.yml with ephemeral test secrets"
 "${ansible_playbook}" \
   -i inventories/dev/hosts.yml \
   site.yml \
