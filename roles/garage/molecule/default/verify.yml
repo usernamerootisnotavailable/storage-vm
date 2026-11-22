@@ -1,0 +1,10 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Verify the Garage role
+      ansible.builtin.include_role:
+        name: garage
+        tasks_from: verify

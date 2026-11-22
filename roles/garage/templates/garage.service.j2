@@ -1,0 +1,22 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Garage S3-compatible object storage
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ garage_user }}
+Group={{ garage_group }}
+ExecStart={{ garage_bin }} -c {{ garage_config_path }} server
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+Environment=RUST_LOG=garage={{ garage_log_level }}
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

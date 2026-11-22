@@ -1,0 +1,9 @@
+---
+- name: Enable and start Garage
+  ansible.builtin.systemd_service:
+    name: "{{ garage_service_name }}"
+    enabled: true
+    state: started
+
+- name: Apply pending Garage restarts
+  ansible.builtin.meta: flush_handlers

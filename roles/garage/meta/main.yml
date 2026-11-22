@@ -1,0 +1,16 @@
+---
+galaxy_info:
+  namespace: storage_host
+  role_name: garage
+  author: Storage Host Maintainers
+  description: Garage S3-compatible object storage for the storage host
+  license: MIT
+  min_ansible_version: "2.22"
+  platforms:
+    - name: AlmaLinux
+      versions:
+        - "10"
+  galaxy_tags:
+    - storage
+    - s3
+dependencies: []

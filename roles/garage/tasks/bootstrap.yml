@@ -1,0 +1,230 @@
+---
+- name: Bootstrap the Garage cluster and S3 access
+  when: not ansible_check_mode
+  block:
+    - name: Wait for the Garage admin API port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ garage_admin_url | urlsplit('port') | int }}"
+        delay: 2
+        timeout: 120
+
+    - name: Wait for the Garage admin API
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/GetClusterStatus"
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        status_code: [200]
+        return_content: true
+      register: garage_status
+      until: garage_status.status == 200
+      retries: 30
+      delay: 2
+      changed_when: false
+      no_log: true
+
+    - name: Read the Garage cluster layout
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/GetClusterLayout"
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        status_code: [200]
+        return_content: true
+      register: garage_layout
+      changed_when: false
+      no_log: true
+
+    - name: Identify the local Garage node
+      ansible.builtin.set_fact:
+        garage_node_id: >-
+          {{ (garage_status.json.nodes | selectattr('isUp') | list | first | default({})).get('id', '') }}
+
+    - name: Read the local node role from the layout
+      ansible.builtin.set_fact:
+        garage_node_role: >-
+          {{ (garage_layout.json.roles
+              | selectattr('id', 'equalto', garage_node_id)
+              | list | first | default({})) }}
+
+    - name: Require a healthy Garage node
+      ansible.builtin.assert:
+        that:
+          - garage_node_id | length > 0
+        fail_msg: No healthy Garage node is available.
+        quiet: true
+
+    - name: Refuse to modify a layout that excludes this node
+      ansible.builtin.assert:
+        that:
+          - garage_layout.json.version | int == 0 or garage_node_role.id is defined
+        fail_msg: >-
+          An existing Garage layout does not include this node. Manual layout
+          changes are required before this role can continue.
+        quiet: true
+
+    - name: Stage the single-node Garage layout
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/UpdateClusterLayout"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        body_format: json
+        body:
+          roles:
+            - id: "{{ garage_node_id }}"
+              zone: "{{ garage_zone }}"
+              capacity: "{{ garage_node_capacity_bytes }}"
+              tags: []
+        status_code: [200]
+        return_content: true
+      register: garage_layout_update
+      changed_when: true
+      no_log: true
+      when:
+        - garage_layout.json.version | int == 0
+        - garage_node_role.id is not defined
+
+    - name: Apply the Garage layout
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/ApplyClusterLayout"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        body_format: json
+        body:
+          version: "{{ (garage_layout.json.version | int) + 1 }}"
+        status_code: [200]
+        return_content: true
+      changed_when: true
+      no_log: true
+      when: garage_layout_update.status | default(0) == 200
+
+    - name: Read the final Garage layout
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/GetClusterLayout"
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        status_code: [200]
+        return_content: true
+      register: garage_layout_final
+      changed_when: false
+      no_log: true
+
+    - name: Assert the Garage layout includes this node
+      ansible.builtin.assert:
+        that:
+          - garage_layout_final.json.version | int >= 1
+          - >-
+            garage_layout_final.json.roles
+            | selectattr('id', 'equalto', garage_node_id)
+            | list | length == 1
+        fail_msg: Garage layout bootstrap failed.
+        quiet: true
+
+    - name: Read the shared S3 key
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/GetKeyInfo?id={{ garage_s3_access_key }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        status_code: [200, 404]
+        return_content: true
+      register: garage_key_info
+      changed_when: false
+      no_log: true
+      when: garage_manage_bucket | bool
+
+    - name: Import the shared S3 key
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/ImportKey"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        body_format: json
+        body:
+          accessKeyId: "{{ garage_s3_access_key }}"
+          secretAccessKey: "{{ garage_s3_secret_key }}"
+          name: "{{ garage_s3_key_name }}"
+        status_code: [200]
+        return_content: true
+      changed_when: true
+      no_log: true
+      when:
+        - garage_manage_bucket | bool
+        - garage_key_info.status == 404
+
+    - name: Read the snapshot bucket
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/GetBucketInfo?globalAlias={{ garage_s3_bucket }}"
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        status_code: [200, 404]
+        return_content: true
+      register: garage_bucket_info
+      changed_when: false
+      no_log: true
+      when: garage_manage_bucket | bool
+
+    - name: Create the snapshot bucket
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/CreateBucket"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        body_format: json
+        body:
+          globalAlias: "{{ garage_s3_bucket }}"
+        status_code: [200]
+        return_content: true
+      changed_when: true
+      no_log: true
+      when:
+        - garage_manage_bucket | bool
+        - garage_bucket_info.status == 404
+
+    - name: Read the final snapshot bucket
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/GetBucketInfo?globalAlias={{ garage_s3_bucket }}"
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        status_code: [200]
+        return_content: true
+      register: garage_bucket_info_final
+      changed_when: false
+      no_log: true
+      when: garage_manage_bucket | bool
+
+    - name: Record the bucket ID and key permissions
+      ansible.builtin.set_fact:
+        garage_bucket_id: "{{ garage_bucket_info_final.json.id }}"
+        garage_bucket_key: >-
+          {{ (garage_bucket_info_final.json.keys
+              | selectattr('accessKeyId', 'equalto', garage_s3_access_key)
+              | list | first | default({})) }}
+      when: garage_manage_bucket | bool
+
+    - name: Grant the shared S3 key owner, read, and write access
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/AllowBucketKey"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        body_format: json
+        body:
+          bucketId: "{{ garage_bucket_id }}"
+          accessKeyId: "{{ garage_s3_access_key }}"
+          permissions:
+            owner: true
+            read: true
+            write: true
+        status_code: [200]
+        return_content: true
+      changed_when: true
+      no_log: true
+      when:
+        - garage_manage_bucket | bool
+        - >-
+          garage_bucket_key.permissions is not defined or
+          not (garage_bucket_key.permissions.owner | default(false)) or
+          not (garage_bucket_key.permissions.read | default(false)) or
+          not (garage_bucket_key.permissions.write | default(false))

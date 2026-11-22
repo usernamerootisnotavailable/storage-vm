@@ -1,0 +1,18 @@
+---
+- name: Validate the Garage configuration
+  ansible.builtin.import_tasks: assert.yml
+
+- name: Install Garage
+  ansible.builtin.import_tasks: install.yml
+
+- name: Configure Garage
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Start Garage
+  ansible.builtin.import_tasks: service.yml
+
+- name: Bootstrap the Garage cluster and S3 access
+  ansible.builtin.import_tasks: bootstrap.yml
+
+- name: Verify Garage
+  ansible.builtin.import_tasks: verify.yml

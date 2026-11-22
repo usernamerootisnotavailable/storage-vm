@@ -1,0 +1,57 @@
+---
+- name: Verify the supported platform
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "AlmaLinux"
+      - ansible_distribution_major_version | int == 10
+    fail_msg: Only AlmaLinux 10 is supported.
+    quiet: true
+
+- name: Validate the Garage version and checksum
+  ansible.builtin.assert:
+    that:
+      - garage_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+      - garage_binary_checksum is match('^sha256:[0-9a-f]{64}$')
+    fail_msg: Pin a full Garage version and its SHA256 checksum in versions.yml.
+    quiet: true
+
+- name: Require loopback-only Garage listeners
+  ansible.builtin.assert:
+    that:
+      - garage_rpc_bind_addr is match('^127\.0\.0\.1:[0-9]+$')
+      - garage_rpc_public_addr is match('^127\.0\.0\.1:[0-9]+$')
+      - garage_s3_api_bind_addr is match('^127\.0\.0\.1:[0-9]+$')
+      - garage_admin_bind_addr is match('^127\.0\.0\.1:[0-9]+$')
+    fail_msg: >-
+      Garage has no native TLS. Bind S3, admin, and RPC to loopback and use a
+      TLS reverse proxy for external access.
+    quiet: true
+
+- name: Validate Garage secrets
+  ansible.builtin.assert:
+    that:
+      - garage_rpc_secret is match('^[0-9a-f]{64}$')
+      - garage_admin_token | length >= 32
+    fail_msg: garage_rpc_secret must be 64 hex characters and the admin token must be at least 32 characters.
+    quiet: true
+  no_log: true
+
+- name: Validate Garage capacity
+  ansible.builtin.assert:
+    that:
+      - garage_node_capacity_bytes | int > 0
+    fail_msg: garage_node_capacity_bytes must be positive.
+    quiet: true
+
+- name: Validate shared S3 credentials
+  ansible.builtin.assert:
+    that:
+      - garage_s3_bucket | length > 0
+      - garage_s3_access_key is match('^[0-9a-f]{16}$')
+      - garage_s3_secret_key is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      Provide a bucket, a 16-hex access key, and a 64-hex secret key when
+      garage_manage_bucket is enabled.
+    quiet: true
+  no_log: true
+  when: garage_manage_bucket | bool

@@ -1,0 +1,21 @@
+---
+- name: Configure Garage
+  ansible.builtin.template:
+    src: garage.toml.j2
+    dest: "{{ garage_config_path }}"
+    owner: root
+    group: "{{ garage_group }}"
+    mode: "0640"
+  diff: false
+  notify: Restart garage
+
+- name: Install the Garage systemd unit
+  ansible.builtin.template:
+    src: garage.service.j2
+    dest: "{{ garage_service_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart garage

@@ -1,0 +1,75 @@
+---
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Verify Garage is running
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services.get(garage_service_name ~ '.service', {}).get('state', '') == 'running'
+    fail_msg: Garage is not running.
+    quiet: true
+
+- name: Verify the Garage admin API
+  when: not ansible_check_mode
+  block:
+    - name: Read the Garage cluster status
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/GetClusterStatus"
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        status_code: [200]
+        return_content: true
+      register: garage_verify_status
+      changed_when: false
+      no_log: true
+
+    - name: Read the Garage cluster layout
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/GetClusterLayout"
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        status_code: [200]
+        return_content: true
+      register: garage_verify_layout
+      changed_when: false
+      no_log: true
+
+    - name: Verify a single-node layout is active
+      ansible.builtin.assert:
+        that:
+          - garage_verify_status.json.nodes | selectattr('isUp') | list | length >= 1
+          - garage_verify_layout.json.version | int >= 1
+          - garage_verify_layout.json.roles | length == 1
+        fail_msg: Garage does not have an active single-node layout.
+        quiet: true
+
+    - name: Verify the shared S3 key and bucket
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/GetBucketInfo?globalAlias={{ garage_s3_bucket }}"
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        status_code: [200]
+        return_content: true
+      register: garage_verify_bucket
+      changed_when: false
+      no_log: true
+      when: garage_manage_bucket | bool
+
+    - name: Extract the shared S3 key permissions
+      ansible.builtin.set_fact:
+        garage_verify_key: >-
+          {{ (garage_verify_bucket.json.keys
+              | selectattr('accessKeyId', 'equalto', garage_s3_access_key)
+              | list | first | default({})) }}
+      when: garage_manage_bucket | bool
+
+    - name: Assert the shared S3 key has full bucket access
+      ansible.builtin.assert:
+        that:
+          - garage_verify_key.accessKeyId is defined
+          - (garage_verify_key.permissions | default({})).owner | default(false)
+          - (garage_verify_key.permissions | default({})).read | default(false)
+          - (garage_verify_key.permissions | default({})).write | default(false)
+        fail_msg: The shared S3 key does not have owner/read/write access to the snapshot bucket.
+        quiet: true
+      when: garage_manage_bucket | bool

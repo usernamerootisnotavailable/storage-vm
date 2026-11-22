@@ -1,0 +1,106 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Garage S3-compatible object storage
+    description:
+      - Installs the pinned Garage binary, configures a single-node layout,
+        and provisions the shared S3 credentials and bucket used by
+        Elasticsearch snapshots.
+    options:
+      garage_version:
+        type: str
+        required: true
+        description: Garage version, pinned in inventory.
+      garage_binary_checksum:
+        type: str
+        required: true
+        description: SHA256 checksum of the Garage binary.
+      garage_binary_url:
+        type: str
+        description: Garage binary download URL.
+      garage_bin:
+        type: str
+        description: Installed binary path.
+      garage_config_path:
+        type: str
+        description: Configuration path.
+      garage_user:
+        type: str
+        description: Service user.
+      garage_group:
+        type: str
+        description: Service group.
+      garage_service_name:
+        type: str
+        description: systemd service name.
+      garage_service_file:
+        type: str
+        description: systemd unit path.
+      garage_log_level:
+        type: str
+        description: Rust log level.
+      garage_data_dir:
+        type: str
+        description: Object data directory.
+      garage_metadata_dir:
+        type: str
+        description: Metadata directory.
+      garage_db_engine:
+        type: str
+        description: Metadata database engine.
+      garage_replication_factor:
+        type: int
+        description: Replication factor.
+      garage_consistency_mode:
+        type: str
+        description: Consistency mode.
+      garage_rpc_bind_addr:
+        type: str
+        description: RPC bind address.
+      garage_rpc_public_addr:
+        type: str
+        description: RPC advertised address.
+      garage_s3_api_bind_addr:
+        type: str
+        description: S3 API bind address.
+      garage_s3_region:
+        type: str
+        description: S3 region.
+      garage_admin_bind_addr:
+        type: str
+        description: Admin API bind address.
+      garage_admin_url:
+        type: str
+        description: Admin API URL.
+      garage_zone:
+        type: str
+        description: Cluster zone for the node.
+      garage_node_capacity_bytes:
+        type: int
+        description: Garage capacity assigned to this node in bytes.
+      garage_manage_bucket:
+        type: bool
+        description: Create the S3 key and bucket used by Elasticsearch.
+      garage_s3_bucket:
+        type: str
+        description: Snapshot bucket name.
+      garage_s3_key_name:
+        type: str
+        description: S3 key name.
+      garage_s3_access_key:
+        type: str
+        description: Shared S3 access key.
+      garage_s3_secret_key:
+        type: str
+        no_log: true
+        description: Shared S3 secret key.
+      garage_rpc_secret:
+        type: str
+        required: true
+        no_log: true
+        description: Garage RPC secret.
+      garage_admin_token:
+        type: str
+        required: true
+        no_log: true
+        description: Garage admin API token.

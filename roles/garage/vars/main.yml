@@ -1,0 +1,4 @@
+---
+# Internal placeholders. Bootstrap overrides these with set_fact.
+garage_bucket_id: ""
+garage_bucket_key: {}
