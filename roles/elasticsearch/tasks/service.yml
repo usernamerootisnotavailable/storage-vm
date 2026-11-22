@@ -27,7 +27,7 @@
     status_code: [200]
     return_content: true
   register: elasticsearch_health
-  until: elasticsearch_health.status == 200
+  until: (elasticsearch_health.status | default(0)) == 200
   retries: 60
   delay: 5
   changed_when: false
