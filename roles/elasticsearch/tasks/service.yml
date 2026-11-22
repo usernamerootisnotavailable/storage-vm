@@ -20,7 +20,7 @@
   ansible.builtin.uri:
     url: >-
       https://127.0.0.1:{{ elasticsearch_http_port }}/_cluster/health?wait_for_status=yellow&timeout=30s
-    ca_cert: "{{ elasticsearch_tls_ca_path }}"
+    ca_path: "{{ elasticsearch_tls_ca_path }}"
     user: elastic
     password: "{{ elasticsearch_bootstrap_password }}"
     force_basic_auth: true

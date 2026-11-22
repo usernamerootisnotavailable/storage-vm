@@ -16,7 +16,7 @@
       ansible.builtin.uri:
         url: >-
           https://127.0.0.1:{{ elasticsearch_http_port }}/_cluster/health
-        ca_cert: "{{ elasticsearch_tls_ca_path }}"
+        ca_path: "{{ elasticsearch_tls_ca_path }}"
         user: elastic
         password: "{{ elasticsearch_bootstrap_password }}"
         force_basic_auth: true
@@ -37,7 +37,7 @@
     - name: Verify unauthenticated access is rejected
       ansible.builtin.uri:
         url: "https://127.0.0.1:{{ elasticsearch_http_port }}/"
-        ca_cert: "{{ elasticsearch_tls_ca_path }}"
+        ca_path: "{{ elasticsearch_tls_ca_path }}"
         status_code: [401]
       changed_when: false
       no_log: true
@@ -47,7 +47,7 @@
         url: >-
           https://127.0.0.1:{{ elasticsearch_http_port }}/_snapshot/{{ elasticsearch_snapshot_repo_name }}/_verify
         method: POST
-        ca_cert: "{{ elasticsearch_tls_ca_path }}"
+        ca_path: "{{ elasticsearch_tls_ca_path }}"
         user: elastic
         password: "{{ elasticsearch_bootstrap_password }}"
         force_basic_auth: true
