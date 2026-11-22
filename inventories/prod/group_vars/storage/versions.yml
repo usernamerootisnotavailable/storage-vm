@@ -1,0 +1,4 @@
+---
+# Component versions are environment data. Keep dev and prod aligned except
+# during a documented staged rollout.
+postgresql_version: "18"

@@ -1,0 +1,17 @@
+---
+postgresql_app_password: "{{ secret_postgresql_app_password | mandatory }}"
+
+# Use a CA-issued certificate in production. The role validates that the
+# provided files exist and that the key is owned by postgres:postgres.
+postgresql_tls_mode: provided
+
+postgresql_backup_enabled: true
+# Tune shared_buffers, effective_cache_size, work_mem, and max_connections for
+# the production host.
+# Backups must be copied to an off-host target. Local backups on the same host
+# are not disaster recovery.
+
+# When clients run on other hosts, set the listener and allowed CIDRs together:
+# postgresql_listen_addresses: "0.0.0.0"
+# postgresql_allowed_cidrs:
+#   - 10.20.0.0/16

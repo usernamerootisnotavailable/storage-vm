@@ -1,0 +1,3 @@
+---
+postgresql_app_password: "{{ secret_postgresql_app_password | mandatory }}"
+postgresql_backup_enabled: false

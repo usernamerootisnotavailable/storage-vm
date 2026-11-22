@@ -1,0 +1,16 @@
+---
+profile: production
+strict: true
+verbosity: 1
+exclude_paths:
+  - .cache/
+  - .molecule/
+  - .venv/
+  - collections/
+  - docker/
+  - docs/
+  - inventories/
+  - molecule/
+  - tests/
+warn_list:
+  - experimental

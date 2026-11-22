@@ -1,0 +1,36 @@
+# Local tooling
+.venv/
+venv/
+.cache/
+.ansible/
+collections/
+__pycache__/
+*.py[cod]
+.molecule/
+*.retry
+*.log
+
+# Local development container state
+.dev/
+docker/dev/.env
+
+# Secrets and private material
+.env
+.env.*
+*.agekey
+age.keys.txt
+keys.txt
+*.pem
+*.key
+*.p12
+*.pfx
+*.kdbx
+inventories/*/group_vars/*/secrets.local.yml
+
+# Encrypted SOPS files ARE committed. Do not ignore *.sops.yml or .sops.yaml.
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
