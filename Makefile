@@ -67,7 +67,7 @@ test-image:
 
 molecule: test-image sysctl
 	@set -e; \
-	for role in common postgresql mariadb garage elasticsearch; do \
+	for role in common postgresql mariadb garage elasticsearch nginx; do \
 		echo "== Molecule: $$role"; \
 		cd "$(CURDIR)/roles/$$role"; \
 		$(MOLECULE) test; \

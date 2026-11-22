@@ -86,6 +86,8 @@ The script:
   - Garage RPC secret and admin token
   - Shared S3 access key and secret key
   - Elasticsearch bootstrap password
+- Writes `secret_nginx_cloudflare_api_token` as a placeholder so the operator
+  must supply a scoped Cloudflare token before enabling Let's Encrypt.
 - Writes a temporary plaintext file with mode `0600`.
 - Encrypts it to `inventories/<env>/group_vars/storage/secrets.sops.yml`.
 - Removes the temporary file on exit.
@@ -117,6 +119,7 @@ secret_garage_admin_token: "..."
 secret_storage_s3_access_key: "..."
 secret_storage_s3_secret_key: "..."
 secret_elasticsearch_bootstrap_password: "..."
+secret_nginx_cloudflare_api_token: "..."
 ```
 
 Map them to role variables in `group_vars/storage/main.yml`:
@@ -129,11 +132,14 @@ garage_admin_token: "{{ secret_garage_admin_token }}"
 storage_s3_access_key: "{{ secret_storage_s3_access_key }}"
 storage_s3_secret_key: "{{ secret_storage_s3_secret_key }}"
 elasticsearch_bootstrap_password: "{{ secret_elasticsearch_bootstrap_password }}"
+nginx_cloudflare_api_token: "{{ secret_nginx_cloudflare_api_token }}"
 ```
 
 Do not use `secret_*` names inside roles. Roles consume the mapped variables.
 
 Elasticsearch stores the bootstrap password and the shared S3 credentials in its keystore. Garage imports the shared S3 key through its admin API. Database passwords and S3 keys never appear in process arguments or configuration templates. Garage's RPC secret and admin token must be present in `/etc/garage.toml`; that file is mode `0640`, owned `root:garage`, and readable only by the service group.
+
+NGINX's Cloudflare token is written to `/etc/letsencrypt/cloudflare.ini`, mode `0600`, owned `root`, with `no_log` and `diff: false`. The token should be scoped to the specific Cloudflare zone with Zone/Zone/Read and Zone/DNS/Edit. Do not use a global API key.
 
 ## Output protection
 
@@ -201,6 +207,14 @@ Garage key IDs are immutable. If the access key ID changes, import the new key a
 2. Apply the Garage role.
 3. Verify the admin API and layout.
 4. Elasticsearch does not use these secrets; it uses the S3 key only.
+
+### Rotate the Cloudflare DNS API token
+
+1. Create a new scoped token in Cloudflare for the zone.
+2. Update `secret_nginx_cloudflare_api_token` with `sops`.
+3. Apply the NGINX role; this rewrites `/etc/letsencrypt/cloudflare.ini`.
+4. Run `certbot renew --dry-run` or wait for the renewal timer.
+5. Revoke the old token in Cloudflare.
 
 ### Rotate an age identity
 

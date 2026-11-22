@@ -44,3 +44,11 @@
       tags:
         - verify
         - elasticsearch
+
+    - name: Verify NGINX
+      ansible.builtin.include_role:
+        name: nginx
+        tasks_from: verify
+      tags:
+        - verify
+        - nginx

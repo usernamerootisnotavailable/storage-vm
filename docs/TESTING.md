@@ -21,7 +21,7 @@ CI is the authoritative test environment. A local pass is necessary but not suff
 make lint          # yamllint, ansible-lint, policy checks
 make syntax        # syntax-check every playbook
 make test-image    # build the AlmaLinux 10 systemd test image
-make molecule      # Molecule for all five roles
+make molecule      # Molecule for all six roles
 make integration   # full site.yml on the dev container, twice
 make test          # lint + syntax + molecule
 ```
@@ -97,7 +97,7 @@ The same file is reused by converge and verify. It is never committed.
 
 ## Full-stack integration
 
-The integration target starts the development container, generates ephemeral credentials for every service, applies `site.yml`, runs verification, applies again, and asserts `changed=0`. The verification includes a Garage-backed Elasticsearch snapshot repository check.
+The integration target starts the development container, generates ephemeral credentials for every service, applies `site.yml`, runs verification, applies again, and asserts `changed=0`. The verification includes a Garage-backed Elasticsearch snapshot repository check and NGINX TLS routing to both Elasticsearch and Garage. Development NGINX uses generated certificates, so integration never contacts Let's Encrypt or Cloudflare.
 
 ```bash
 make integration
@@ -113,8 +113,8 @@ The Docker host must provide `vm.max_map_count=262144`; the integration and `dev
 
 1. **lint** — `yamllint`, `ansible-lint`, policy checks, syntax check
 2. **secret-scan** — `gitleaks` with a pinned binary
-3. **molecule** — matrix over `common`, `postgresql`, `mariadb`, `garage`, and `elasticsearch`
-4. **integration** — full `site.yml` on the AlmaLinux 10 container, including the Garage S3 snapshot repository
+3. **molecule** — matrix over `common`, `postgresql`, `mariadb`, `garage`, `elasticsearch`, and `nginx`
+4. **integration** — full `site.yml` on the AlmaLinux 10 container, including the Garage S3 snapshot repository and NGINX TLS routing
 
 Requirements:
 
@@ -153,7 +153,9 @@ Docker cannot validate:
 
 - SELinux enforcing behavior and file contexts, including the MariaDB vendor policy
 - Garage and Elasticsearch unconfined SELinux domains
+- NGINX `httpd_t` to `http_port_t` upstream policy
 - nftables/firewalld behavior against a real network
+- Let's Encrypt DNS-01, Cloudflare API access, and public DNS
 - Real disk layout, I/O, or filesystem tuning
 - SSH access from an external network
 
@@ -163,7 +165,9 @@ Before a production change that touches these areas:
 2. Verify SELinux denials with `ausearch -m avc -ts recent`.
 3. Verify firewall rules from an allowed and a denied source.
 4. Verify SSH access with the intended automation and admin users.
-5. Record the verification in the pull request.
+5. Verify NGINX from an allowed and a denied network, and confirm `httpd_t` can connect to the labeled upstream ports.
+6. Verify Let's Encrypt issuance/renewal and the Cloudflare DNS token scope when using production certificate mode.
+7. Record the verification in the pull request.
 
 ## Definition of done
 

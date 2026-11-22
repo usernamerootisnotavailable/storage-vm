@@ -6,6 +6,7 @@ Ansible configuration for an AlmaLinux 10 storage host running:
 - **PostgreSQL** 18
 - **MariaDB** 11.8
 - **Garage** 2.5 (S3-compatible object storage)
+- **NGINX** 1.26 with Let's Encrypt certificates via Certbot DNS-01 and Cloudflare
 
 One host runs all services per environment. Development and production use the same roles, playbooks, and variable names; only inventory data, credentials, sizing, and endpoints differ.
 
@@ -19,9 +20,10 @@ One host runs all services per environment. Development and production use the s
 | MariaDB 11.8 role | Implemented |
 | Garage 2.5 role | Implemented |
 | Elasticsearch 9.5 role | Implemented |
-| Full-stack integration | All services and Garage snapshots |
+| NGINX private TLS reverse proxy | Implemented |
+| Full-stack integration | All services, Garage snapshots, and NGINX routing |
 
-`site.yml` applies `common`, PostgreSQL, MariaDB, Garage, Elasticsearch, and verification in dependency order. Garage is configured before Elasticsearch so the snapshot repository can be registered and verified.
+`site.yml` applies `common`, PostgreSQL, MariaDB, Garage, Elasticsearch, NGINX, and verification in dependency order. Garage is configured before Elasticsearch so the snapshot repository can be registered and verified. NGINX runs after Elasticsearch so it can trust the Elasticsearch CA.
 
 ## Supported platform
 
@@ -42,6 +44,8 @@ On the controller:
 - Docker with a running daemon for local Molecule and integration tests
 - `vm.max_map_count=262144` on the Docker host for Elasticsearch; `make dev-up`
   attempts to raise it when passwordless sudo is available
+- For production Let's Encrypt: a Cloudflare-managed domain, a scoped API token,
+  and a Let's Encrypt account email
 - `make`, `git`, and `ssh`
 
 On managed hosts:
@@ -86,7 +90,7 @@ ansible-playbook -i inventories/prod/hosts.yml site.yml --check --diff
 ansible-playbook -i inventories/prod/hosts.yml site.yml
 ```
 
-Production deployment requires approval, a backup, and the production age key. Set the production SSH CIDRs before enabling the firewall, and include the operator and automation source addresses. See `docs/ENVIRONMENTS.md`.
+Production deployment requires approval, a backup, and the production age key. Set the production SSH and NGINX HTTPS CIDRs before enabling the firewall, and include the operator and automation source addresses. Production NGINX uses Let's Encrypt DNS-01 through Cloudflare; the private server needs no inbound HTTP challenge. See `docs/ENVIRONMENTS.md` and `docs/components/nginx.md`.
 
 ## Documentation
 
@@ -104,6 +108,7 @@ Production deployment requires approval, a backup, and the production age key. S
 | [`docs/components/mariadb.md`](docs/components/mariadb.md) | MariaDB role reference |
 | [`docs/components/garage.md`](docs/components/garage.md) | Garage role reference |
 | [`docs/components/elasticsearch.md`](docs/components/elasticsearch.md) | Elasticsearch role reference |
+| [`docs/components/nginx.md`](docs/components/nginx.md) | NGINX, Certbot, Cloudflare DNS-01, and private exposure |
 
 ## Non-negotiables
 
@@ -111,4 +116,5 @@ Production deployment requires approval, a backup, and the production age key. S
 2. One code path for every environment. Environment identity never appears in role logic.
 3. Pin versions and collection dependencies. Never use `latest`.
 4. Keep SELinux enforcing and the firewall enabled in production. Never disable a security control to make a test pass.
-5. Every change must be idempotent, linted, tested, and documented.
+5. Keep NGINX private. Port 443 accepts only explicit private or VPN CIDRs; public CIDRs and port 80 are forbidden.
+6. Every change must be idempotent, linted, tested, and documented.

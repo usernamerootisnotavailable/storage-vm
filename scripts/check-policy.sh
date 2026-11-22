@@ -25,7 +25,8 @@ for document in \
   docs/components/postgresql.md \
   docs/components/mariadb.md \
   docs/components/garage.md \
-  docs/components/elasticsearch.md; do
+  docs/components/elasticsearch.md \
+  docs/components/nginx.md; do
   [[ -f "${document}" ]] || fail "missing ${document}"
 done
 

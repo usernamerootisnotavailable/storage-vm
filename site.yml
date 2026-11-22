@@ -18,5 +18,9 @@
 - name: Configure Elasticsearch
   import_playbook: playbooks/elasticsearch.yml
 
+# NGINX fronts Elasticsearch over HTTPS and Garage S3 over loopback HTTP.
+- name: Configure the NGINX reverse proxy
+  import_playbook: playbooks/nginx.yml
+
 - name: Verify the storage host
   import_playbook: playbooks/verify.yml

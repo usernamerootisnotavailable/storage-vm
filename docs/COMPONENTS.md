@@ -12,13 +12,18 @@ Checked against vendor repositories and tested where noted. Reverify before chan
 | MariaDB | `https://mirror.mariadb.org/yum/11.8/rhel/10/x86_64/` | 11.8.10 (`1.el10`) | Verified | Implemented |
 | Garage | `https://garagehq.deuxfleurs.fr/_releases/2.5.0/x86_64-unknown-linux-musl/garage` | 2.5.0 | Static musl binary | Implemented |
 | Elasticsearch | `https://artifacts.elastic.co/packages/9.x/yum/` | 9.5.6 | Verified | Implemented |
+| NGINX | AlmaLinux AppStream | 1.26.3 | Verified | Implemented |
+| Certbot | PyPI virtualenv | 5.10.0 | Python >=3.10 | Implemented |
+| certbot-dns-cloudflare | PyPI virtualenv | 5.10.0 | Python >=3.10 | Implemented |
 
 AlmaLinux 10 package availability verified for:
 
 - `python3`, `python3-dnf`, `python3-psycopg2`, `python3-PyMySQL`
 - `python3-cryptography`, `python3-libselinux`, `libselinux-utils`
+- `python3-pip`
 - `firewalld`, `python3-firewall`
 - `policycoreutils`, `policycoreutils-python-utils`
+- `nginx`
 - `chrony`, `openssh-server`, `sudo`, `dnf-plugins-core`
 
 ## Required contract
@@ -73,6 +78,7 @@ Each component documents and implements:
 - [MariaDB 11.8](components/mariadb.md)
 - [Garage 2.5](components/garage.md)
 - [Elasticsearch 9](components/elasticsearch.md)
+- [NGINX reverse proxy](components/nginx.md)
 
 ## Cross-service integration
 
@@ -103,6 +109,15 @@ s3.client.default.disable_chunked_encoding: true
 
 The complete Elasticsearch snapshot flow (register, verify, snapshot) was validated against Garage 2.5.0.
 
+### NGINX front door
+
+- `https://es.<base-domain>` proxies to Elasticsearch over verified loopback TLS.
+- `https://s3.<base-domain>` proxies to Garage over loopback HTTP with the Host header preserved.
+- External S3 clients must use path-style addressing and disable AWS SDK chunked trailer checksums for Garage compatibility.
+- Elasticsearch snapshots keep using `http://127.0.0.1:3900` and do not depend on NGINX.
+- Port 443 is restricted to explicit private or VPN CIDRs; public CIDRs are rejected.
+- Certificates use Let's Encrypt DNS-01 through Cloudflare in production and a generated CA in development/CI.
+
 ### Database independence
 
 - PostgreSQL and MariaDB have separate application users, databases, passwords, and ports.
@@ -118,6 +133,7 @@ The complete Elasticsearch snapshot flow (register, verify, snapshot) was valida
 | MariaDB | Vendor `mariadb.pp` installed; enforcing |
 | Garage | No confined domain in AlmaLinux 10; unconfined service domain |
 | Elasticsearch | No confined domain in AlmaLinux 10; unconfined service domain |
+| NGINX | `httpd_t`; TLS files labeled `httpd_config_t`; upstream ports labeled `http_port_t` |
 
 The unconfined domains are documented gaps. File permissions, loopback binding, and service users still apply. A future hardening phase can add policy modules.
 
@@ -138,4 +154,5 @@ Local backups on the same host are not disaster recovery.
 - MariaDB configuration, TLS, application authentication, and dump script tested with the actual 11.8.10 binaries.
 - Garage 2.5.0 config, single-node layout, key import, bucket creation, and permissions tested with the actual binary and admin API.
 - Elasticsearch 9.5.6 TLS, bootstrap password, authentication, and Garage S3 snapshot flow tested with the actual package and a running Garage instance.
+- NGINX configuration syntax, TLS termination, Elasticsearch HTTPS upstream verification, and S3 HTTP proxying were validated with the AlmaLinux 10 NGINX 1.26.3 binary and local dummy upstreams. Molecule and full-stack integration exercise the role and real service routing. Let's Encrypt DNS-01, Cloudflare API access, and SELinux `httpd_t` network policy require a real host and real Cloudflare credentials.
 - Container package installation, systemd services, SELinux enforcement, and firewalld behavior remain CI/real-host validation items.

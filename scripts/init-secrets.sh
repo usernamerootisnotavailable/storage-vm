@@ -50,6 +50,7 @@ secret_garage_admin_token: "${garage_admin_token}"
 secret_storage_s3_access_key: "${s3_access_key}"
 secret_storage_s3_secret_key: "${s3_secret_key}"
 secret_elasticsearch_bootstrap_password: "${elasticsearch_bootstrap_password}"
+secret_nginx_cloudflare_api_token: "REPLACE_WITH_CLOUDFLARE_API_TOKEN"
 EOF
 
 if ! sops --encrypt \
@@ -68,4 +69,6 @@ trap - EXIT
 rm -f "${plaintext}"
 
 echo "Created ${output}"
+echo "Edit the file with 'sops ${output}' to set the scoped Cloudflare API token"
+echo "before enabling Let's Encrypt mode."
 echo "Verify with: sops --decrypt ${output} >/dev/null"

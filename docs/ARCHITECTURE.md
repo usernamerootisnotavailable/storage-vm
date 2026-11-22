@@ -36,6 +36,7 @@ These decisions require an explicit architecture review to change.
               ┌──────────────▼──────────────┐
               │       storage01 (AL10)      │
               │                             │
+              │  NGINX          :443       │
               │  Elasticsearch   :9200      │
               │  PostgreSQL      :5432      │
               │  MariaDB         :3306      │
@@ -49,8 +50,9 @@ These decisions require an explicit architecture review to change.
 
 - All services run on `storage01` in both environments.
 - Service listeners bind loopback by default. Any listener reachable from another host must be explicitly allowed by CIDR and protected by TLS.
-- Garage has no native TLS. Its S3, admin, and RPC listeners are loopback-only; external S3 requires a TLS reverse proxy that is not part of this repository.
-- Elasticsearch snapshots are written to Garage over loopback.
+- NGINX terminates TLS on port 443 for Elasticsearch and Garage S3. Port 443 is restricted to private/VPN CIDRs.
+- Garage has no native TLS. Its S3, admin, and RPC listeners remain loopback-only; NGINX provides the external S3 TLS endpoint.
+- Elasticsearch snapshots are written to Garage over loopback and do not depend on NGINX.
 - There is no high availability. A host loss takes every service down. Production requires tested off-host backups.
 
 ## Repository layout
@@ -61,7 +63,7 @@ requirements.yml            Pinned Ansible collections
 requirements-dev.txt        Pinned lint and test tooling
 site.yml                    Full host convergence
 playbooks/                  Per-role and verification playbooks
-roles/                      common, postgresql, mariadb, garage, elasticsearch
+roles/                      common, postgresql, mariadb, garage, elasticsearch, nginx
 inventories/dev/            Development inventory and values
 inventories/prod/           Production inventory and values
 docker/dev/                 AlmaLinux 10 systemd development image
@@ -78,9 +80,10 @@ docs/                       Normative project documentation
 3. `mariadb` — MariaDB 11.8
 4. `garage` — Garage S3
 5. `elasticsearch` — Elasticsearch 9 and snapshot repository
-6. `verify` — service health checks
+6. `nginx` — private TLS reverse proxy for Elasticsearch and Garage
+7. `verify` — service health checks
 
-Garage must run before Elasticsearch because Elasticsearch registers a Garage snapshot repository.
+Garage must run before Elasticsearch because Elasticsearch registers a Garage snapshot repository. NGINX runs after Elasticsearch so it can copy and trust the Elasticsearch CA.
 
 Per-role tags allow targeted runs:
 
@@ -96,6 +99,8 @@ ansible-playbook -i inventories/dev/hosts.yml site.yml --tags elasticsearch
 | MariaDB 11.8 | `mariadb` | 3306 | `/etc/my.cnf.d/99-storage-host.cnf` | `/var/lib/mysql` | `mariadb.service` | MariaDB EL10 repository |
 | Garage 2.5 | `garage` | 3900 S3, 3901 RPC, 3903 admin | `/etc/garage.toml` | `/var/lib/garage` | `garage.service` | Pinned static binary |
 | Elasticsearch 9.5 | `elasticsearch` | 9200 HTTP, 9300 transport | `/etc/elasticsearch/elasticsearch.yml` | `/var/lib/elasticsearch` | `elasticsearch.service` | Elastic 9.x repository |
+| NGINX 1.26 | `nginx` | 443 HTTPS | `/etc/nginx/` | — | `nginx.service` | AlmaLinux AppStream |
+| Certbot 5.10 | `nginx` | — | `/etc/letsencrypt/` | `/etc/letsencrypt/` | `certbot-renew.timer` | PyPI virtualenv |
 
 Ports, paths, and versions are variables. The table records defaults.
 
@@ -152,9 +157,11 @@ Package repositories are configured by the role that needs them. All vendor repo
 ## Security baseline
 
 - SELinux stays enforcing. MariaDB installs its vendor policy module. Garage and Elasticsearch have no confined domain on AlmaLinux 10 and run unconfined; this is a documented gap.
-- firewalld default-denies inbound traffic. The broad SSH allowance is removed and replaced with source-CIDR rich rules.
+- NGINX runs in `httpd_t`; TLS files are labeled `httpd_config_t` and upstream ports `http_port_t`.
+- firewalld default-denies inbound traffic. The broad SSH allowance is removed and replaced with source-CIDR rich rules. NGINX opens 443 only to private/VPN CIDRs.
 - Services bind loopback unless a documented client CIDR requires otherwise.
-- TLS is required for every listener reachable off-host. Garage has no native TLS and must stay on loopback.
+- TLS is required for every listener reachable off-host. Garage has no native TLS and is fronted by NGINX.
+- Let's Encrypt certificates use DNS-01 through Cloudflare; no inbound HTTP challenge is required.
 - Service processes run as dedicated users.
 - Secrets are decrypted on the controller and masked in Ansible output. They are never placed in process arguments or world-readable files.
 - SSH host keys are verified. Production uses `known_hosts`; development uses a project-local `known_hosts`.
@@ -164,8 +171,9 @@ Package repositories are configured by the role that needs them. All vendor repo
 
 - **Single point of failure:** one host per environment. Acceptable only with tested backups and a documented recovery objective.
 - **Backup locality:** backups stored only on the same host are not disaster recovery. Production needs an off-host target for database dumps and Garage data.
-- **Garage exposure:** no native TLS. External S3 access requires a reverse proxy.
-- **SELinux gaps:** Garage and Elasticsearch run unconfined because AlmaLinux 10 has no matching vendor policy. MariaDB keeps enforcing with its vendor module.
+- **Garage exposure:** no native TLS. External S3 access goes through NGINX with path-style addressing and compatible AWS SDK checksum settings.
+- **SELinux gaps:** Garage and Elasticsearch run unconfined because AlmaLinux 10 has no matching vendor policy. MariaDB keeps enforcing with its vendor module. NGINX's `httpd_t` to upstream port policy requires real-host verification.
+- **Certificate dependency:** Let's Encrypt mode requires a Cloudflare-managed domain, a scoped API token, and outbound HTTPS. DNS-01 is not exercised in CI; development uses generated certificates.
 - **Container fidelity:** Docker validates packages, templates, services, and idempotence, but not SELinux enforcement, kernel firewall behavior, or real block devices. A real-host smoke test is required before production.
 - **Vendor support:** Elasticsearch 9.5.6 and MariaDB 11.8.10 EL10 packages are verified, but full package installation remains a CI/real-host validation item.
 - **No HA:** Elasticsearch is a single node, PostgreSQL and MariaDB have no replicas, and Garage has a single-node layout.

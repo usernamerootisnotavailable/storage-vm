@@ -50,9 +50,12 @@ The development host is a disposable AlmaLinux 10 systemd container built from `
 
 The container is a test harness, not a production topology. It cannot validate:
 
-- SELinux enforcement
+- SELinux enforcement, including NGINX `httpd_t` port policy
 - Kernel firewall behavior
 - Real block devices or filesystems
+- Let's Encrypt DNS-01, Cloudflare API access, or public DNS
+
+Development uses `nginx_certificate_mode: generated` and never contacts Let's Encrypt.
 
 Those require a real AlmaLinux 10 host smoke test before a production change is accepted.
 
@@ -64,7 +67,8 @@ Those require a real AlmaLinux 10 host smoke test before a production change is 
 | SSH key | Yes | Project-local dev key vs operator/CI key |
 | Sizing | Yes | Smaller `postgresql_shared_buffers` in dev |
 | Allowed client CIDRs | Yes | Empty in dev; application subnet in prod |
-| TLS certificate source | Yes | Self-signed in dev; CA-issued in prod |
+| TLS certificate source | Yes | Generated CA in dev; Let's Encrypt in prod |
+| HTTPS exposure | Yes | Loopback/private CIDRs; never public |
 | Backup target | Yes | Local only in dev; off-host in prod |
 | Credentials | Yes | Separate SOPS files and age keys |
 | Version during staged rollout | Yes, temporarily | Dev on a new minor before prod, documented |
@@ -110,7 +114,7 @@ Promotion is by commit SHA, not by copying files between environments:
 2. Deploy the same SHA to `dev`.
 3. Run `playbooks/verify.yml` and the service-specific checks.
 4. Compare non-secret variable values in `dev` and `prod`. Differences must be on the allowed list.
-5. Ensure the production SSH CIDRs include the operator and the automation source.
+5. Ensure the production SSH and NGINX HTTPS CIDRs include the operator and the automation source; never use public CIDRs for NGINX.
 6. If versions differ, record the staged rollout and its rollback point.
 7. Deploy the same SHA to `prod` with approval.
 8. Verify production.
@@ -126,6 +130,8 @@ Production changes require:
 - A current backup or a documented reason one is not needed
 - `--check --diff` output reviewed
 - The production age key, available only in the protected `prod` GitHub Environment or to an authorized operator
+- A real domain, scoped Cloudflare DNS token, and Let's Encrypt account email for NGINX
+- Private or VPN CIDRs for SSH and NGINX HTTPS
 - A maintenance window for disruptive changes
 - A rollback point (previous commit SHA and, for data changes, a restore procedure)
 - Explicit human approval before applying

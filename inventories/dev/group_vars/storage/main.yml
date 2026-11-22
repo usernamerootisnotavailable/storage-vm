@@ -18,3 +18,8 @@ garage_node_capacity_bytes: 1073741824
 elasticsearch_bootstrap_password: "{{ secret_elasticsearch_bootstrap_password | mandatory }}"
 elasticsearch_heap_size: "512m"
 elasticsearch_manage_sysctl: false
+
+nginx_certificate_mode: generated
+nginx_base_domain: "storage.example.com"
+nginx_allowed_cidrs:
+  - 127.0.0.1/32

@@ -152,12 +152,14 @@ storage_s3_access_key: "{{ secret_storage_s3_access_key }}"
 storage_s3_secret_key: "{{ secret_storage_s3_secret_key }}"
 ```
 
-Garage and Elasticsearch consume these values. A role may default to a shared variable only with a safe fallback, and must document the contract in its README.
+Garage and Elasticsearch consume these values. NGINX uses the Elasticsearch CA path for upstream verification. A role may default to a shared variable only with a safe fallback, and must document the contract in its README.
+
+Let's Encrypt mode also consumes `secret_nginx_cloudflare_api_token` through the `nginx_cloudflare_api_token` mapping. Generated certificate mode does not.
 
 ## Versions
 
 - Versions live in `inventories/<env>/group_vars/storage/versions.yml`.
-- Pin full versions where the vendor artifact is version-specific: MariaDB, Garage, Elasticsearch.
+- Pin full versions where the vendor artifact is version-specific: MariaDB, Garage, Elasticsearch, and NGINX.
 - Pin PostgreSQL by major version and record the tested patch.
 - Garage requires both a version and its SHA256 checksum.
 - Never use `latest`, `*`, or an unpinned image tag.
