@@ -32,6 +32,7 @@ provisioner:
           {{ lookup('password', '/tmp/storage-host-molecule-mariadb length=32 chars=ascii_letters,digits') }}
         mariadb_tls_mode: generated
         mariadb_backup_enabled: true
+        mariadb_backup_dir: /var/backups/mariadb
         mariadb_backup_on_calendar: "*-*-* 03:15:00"
   playbooks:
     prepare: prepare.yml
