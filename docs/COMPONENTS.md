@@ -120,6 +120,9 @@ The complete Elasticsearch snapshot flow (register, verify, snapshot) was valida
 
 ### Database independence
 
+See [Database applications](DATABASES.md) for the normative cross-engine policy
+that governs these contracts.
+
 - PostgreSQL and MariaDB have separate application accounts, databases,
   passwords, and ports.
 - PostgreSQL applications are declared in `postgresql_apps`. Each present app

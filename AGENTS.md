@@ -12,7 +12,9 @@ This file is the short, enforceable rulebook for every change in this repository
 6. `docs/ENVIRONMENTS.md`
 7. `docs/TESTING.md`
 8. `docs/CONTRIBUTING.md`
-9. The relevant file in `docs/components/`
+9. `docs/COMPONENTS.md`
+10. `docs/DATABASES.md`
+11. The relevant file in `docs/components/`
 
 If a rule is unclear, stop and ask. Do not invent a new convention silently.
 

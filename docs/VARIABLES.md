@@ -179,6 +179,9 @@ Let's Encrypt mode also consumes `secret_nginx_cloudflare_api_token` through the
 
 ## Database application contracts
 
+See [Database applications](DATABASES.md) for the normative cross-engine policy
+on ownership, lifecycle, secrets, network exposure, TLS, and verification.
+
 PostgreSQL and MariaDB use explicit application lists. The storage host owns
 accounts, databases, grants, TLS requirements, and firewall exposure; app
 deployments own migrations and connectivity. Do not add raw authentication or

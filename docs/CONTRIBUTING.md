@@ -41,6 +41,8 @@ Keep commits focused. A role change, its tests, and its documentation may be one
 - [ ] `gitleaks` passes.
 - [ ] SELinux/firewall changes have a real-host verification plan.
 - [ ] Documentation is updated.
+- [ ] Database apps follow [`docs/DATABASES.md`](DATABASES.md), including
+      lifecycle, secrets, CIDRs, TLS, and verification.
 - [ ] Destructive changes include backup and rollback steps.
 
 ## Adding a role

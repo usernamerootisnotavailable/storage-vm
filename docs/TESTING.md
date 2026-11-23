@@ -144,6 +144,11 @@ IPv4 network/netmask hosts; broader IPv6 networks fail by design.
 
 The integration target starts the development container, generates ephemeral credentials for every service, applies `site.yml`, and runs verification. It logs in as each present development PostgreSQL app over `127.0.0.1` with TLS and asserts the database, user, and SSL state. It also logs in as each present development MariaDB app over `127.0.0.1` with the MariaDB CA, asserting `DATABASE()`, `CURRENT_USER()`, and a non-empty `Ssl_cipher`. The MariaDB proof runs only when present `mariadb_apps` entries exist. It then creates a test index, creates and reads an Elasticsearch snapshot through the shared read/write Garage S3 key, and always deletes the snapshot and index. Finally it applies `site.yml` again and asserts `changed=0`. Verification also includes a Garage-backed snapshot repository check and NGINX TLS routing to both Elasticsearch and Garage. Development NGINX uses generated certificates, so integration never contacts Let's Encrypt or Cloudflare.
 
+The database login proofs run against development loopback addresses with
+generated TLS material. See [Database applications](DATABASES.md) for the
+application verification policy and ownership boundaries. These are development
+proofs and do not demonstrate production application connectivity.
+
 ```bash
 make integration
 ```

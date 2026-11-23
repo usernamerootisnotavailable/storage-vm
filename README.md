@@ -104,6 +104,7 @@ Production deployment requires approval, a backup, and the production age key. S
 | [`docs/TESTING.md`](docs/TESTING.md) | Test layers, Molecule, GitHub Actions, known gaps |
 | [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) | Change workflow and review checklist |
 | [`docs/COMPONENTS.md`](docs/COMPONENTS.md) | Component contracts and verified platform data |
+| [`docs/DATABASES.md`](docs/DATABASES.md) | Cross-engine policy for PostgreSQL and MariaDB applications |
 | [`docs/components/postgresql.md`](docs/components/postgresql.md) | PostgreSQL role reference |
 | [`docs/components/mariadb.md`](docs/components/mariadb.md) | MariaDB role reference |
 | [`docs/components/garage.md`](docs/components/garage.md) | Garage role reference |

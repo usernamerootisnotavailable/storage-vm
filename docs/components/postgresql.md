@@ -167,6 +167,9 @@ Docker tests cannot verify these controls. A real AlmaLinux 10 host check is req
 
 ## Adding a PostgreSQL app
 
+See [`docs/DATABASES.md`](../DATABASES.md) for the cross-engine policy on
+ownership, lifecycle, secrets, network exposure, TLS, and verification.
+
 1. Add one `postgresql_apps` entry with an explicit `state`, unique lowercase
    `name` and `user`, and globally unique `databases`.
 2. Store the password in SOPS under a distinct key. The baseline key is

@@ -10,8 +10,8 @@
         postgresql_apps: "{{ postgresql_apps | default([], true) }}"
         postgresql_port: "{{ postgresql_port | default(5432, true) }}"
         postgresql_tls_enabled: "{{ postgresql_tls_enabled | default(true, true) }}"
-        postgresql_tls_ca_path: >-
-          {{ postgresql_tls_ca_path | default('/var/lib/pgsql/18/data/tls/ca.crt', true) }}
+        postgresql_tls_cert_path: >-
+          {{ postgresql_tls_cert_path | default('/var/lib/pgsql/18/data/tls/server.crt', true) }}
       no_log: true
 
     - name: Require a present application for the login proof
@@ -37,7 +37,7 @@
         login_user: "{{ app_database.0.user }}"
         login_password: "{{ app_database.0.password }}"
         login_db: "{{ app_database.1 }}"
-        ca_cert: "{{ postgresql_tls_ca_path }}"
+        ca_cert: "{{ postgresql_tls_cert_path }}"
         ssl_mode: verify-full
         query: >-
           SELECT current_database() AS database,
