@@ -203,7 +203,28 @@
               | list | first | default({})) }}
       when: garage_manage_bucket | bool
 
-    - name: Grant the shared S3 key owner, read, and write access
+    - name: Remove bucket ownership from the shared S3 key
+      ansible.builtin.uri:
+        url: "{{ garage_admin_url }}/v2/DenyBucketKey"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ garage_admin_token }}"
+        body_format: json
+        body:
+          bucketId: "{{ garage_bucket_id }}"
+          accessKeyId: "{{ garage_s3_access_key }}"
+          permissions:
+            owner: true
+        status_code: [200]
+        return_content: true
+      changed_when: true
+      no_log: true
+      when:
+        - garage_manage_bucket | bool
+        - garage_bucket_key.permissions is defined
+        - garage_bucket_key.permissions.owner | default(false)
+
+    - name: Grant the shared S3 key read and write access
       ansible.builtin.uri:
         url: "{{ garage_admin_url }}/v2/AllowBucketKey"
         method: POST
@@ -214,7 +235,6 @@
           bucketId: "{{ garage_bucket_id }}"
           accessKeyId: "{{ garage_s3_access_key }}"
           permissions:
-            owner: true
             read: true
             write: true
         status_code: [200]
@@ -225,6 +245,5 @@
         - garage_manage_bucket | bool
         - >-
           garage_bucket_key.permissions is not defined or
-          not (garage_bucket_key.permissions.owner | default(false)) or
           not (garage_bucket_key.permissions.read | default(false)) or
           not (garage_bucket_key.permissions.write | default(false))

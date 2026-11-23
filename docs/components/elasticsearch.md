@@ -93,7 +93,7 @@ The repository is registered with:
 
 `disable_chunked_encoding` is required: Garage 2.5 rejects the AWS SDK's default aws-chunked trailer signature with `400 Invalid payload signature`.
 
-The full flow was verified with a real Elasticsearch 9.5.6 process and Garage 2.5.0, including `_verify` and a successful snapshot.
+The full flow was verified with a real Elasticsearch 9.5.6 process and Garage 2.5.0, including `_verify` and a successful snapshot. Integration also creates, reads, and deletes a test snapshot to prove the shared read/write Garage key works without bucket ownership.
 
 ## Sizing
 

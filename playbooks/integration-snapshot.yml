@@ -1,0 +1,155 @@
+---
+- name: Prove Elasticsearch snapshots work with the read/write Garage key
+  hosts: storage
+  gather_facts: true
+  become: true
+  vars:
+    snapshot_test_index: snapshot-rw-test
+    snapshot_test_snapshot: ci-snapshot-test
+  tasks:
+    - name: Apply Elasticsearch defaults to the standalone integration play
+      ansible.builtin.set_fact:
+        elasticsearch_http_port: "{{ elasticsearch_http_port | default(9200, true) }}"
+        elasticsearch_tls_ca_path: >-
+          {{ elasticsearch_tls_ca_path | default('/etc/elasticsearch/certs/ca.crt', true) }}
+        elasticsearch_snapshot_repo_name: >-
+          {{ elasticsearch_snapshot_repo_name | default('garage', true) }}
+        elasticsearch_snapshot_repo_enabled: >-
+          {{ elasticsearch_snapshot_repo_enabled | default(true) }}
+      when: >-
+        elasticsearch_http_port is not defined or
+        elasticsearch_tls_ca_path is not defined or
+        elasticsearch_snapshot_repo_name is not defined or
+        elasticsearch_snapshot_repo_enabled is not defined
+
+    - name: Test Elasticsearch snapshot creation and deletion
+      when: elasticsearch_snapshot_repo_enabled | bool
+      block:
+        - name: Remove any previous test snapshot
+          ansible.builtin.uri:
+            url: >-
+              https://127.0.0.1:{{ elasticsearch_http_port }}/_snapshot/{{
+              elasticsearch_snapshot_repo_name }}/{{ snapshot_test_snapshot }}
+            method: DELETE
+            ca_path: "{{ elasticsearch_tls_ca_path }}"
+            user: elastic
+            password: "{{ elasticsearch_bootstrap_password }}"
+            force_basic_auth: true
+            status_code: [200, 404]
+          register: snapshot_test_cleanup_snapshot
+          changed_when: snapshot_test_cleanup_snapshot.status == 200
+          no_log: true
+
+        - name: Remove any previous test index
+          ansible.builtin.uri:
+            url: "https://127.0.0.1:{{ elasticsearch_http_port }}/{{ snapshot_test_index }}"
+            method: DELETE
+            ca_path: "{{ elasticsearch_tls_ca_path }}"
+            user: elastic
+            password: "{{ elasticsearch_bootstrap_password }}"
+            force_basic_auth: true
+            status_code: [200, 404]
+          register: snapshot_test_cleanup_index
+          changed_when: snapshot_test_cleanup_index.status == 200
+          no_log: true
+
+        - name: Create the test index
+          ansible.builtin.uri:
+            url: "https://127.0.0.1:{{ elasticsearch_http_port }}/{{ snapshot_test_index }}"
+            method: PUT
+            ca_path: "{{ elasticsearch_tls_ca_path }}"
+            user: elastic
+            password: "{{ elasticsearch_bootstrap_password }}"
+            force_basic_auth: true
+            status_code: [200]
+          no_log: true
+
+        - name: Index a document in the test index
+          ansible.builtin.uri:
+            url: "https://127.0.0.1:{{ elasticsearch_http_port }}/{{ snapshot_test_index }}/_doc/1?refresh=true"
+            method: PUT
+            ca_path: "{{ elasticsearch_tls_ca_path }}"
+            user: elastic
+            password: "{{ elasticsearch_bootstrap_password }}"
+            force_basic_auth: true
+            body_format: json
+            body:
+              message: snapshot read/write test
+            status_code: [200, 201]
+          no_log: true
+
+        - name: Create the test snapshot
+          ansible.builtin.uri:
+            url: >-
+              https://127.0.0.1:{{ elasticsearch_http_port }}/_snapshot/{{
+              elasticsearch_snapshot_repo_name }}/{{ snapshot_test_snapshot }}
+            method: PUT
+            ca_path: "{{ elasticsearch_tls_ca_path }}"
+            user: elastic
+            password: "{{ elasticsearch_bootstrap_password }}"
+            force_basic_auth: true
+            body_format: json
+            body:
+              indices: "{{ snapshot_test_index }}"
+              include_global_state: false
+              wait_for_completion: true
+            status_code: [200]
+          no_log: true
+
+        - name: Read the test snapshot
+          ansible.builtin.uri:
+            url: >-
+              https://127.0.0.1:{{ elasticsearch_http_port }}/_snapshot/{{
+              elasticsearch_snapshot_repo_name }}/{{ snapshot_test_snapshot }}
+            method: GET
+            ca_path: "{{ elasticsearch_tls_ca_path }}"
+            user: elastic
+            password: "{{ elasticsearch_bootstrap_password }}"
+            force_basic_auth: true
+            status_code: [200]
+            return_content: true
+          register: snapshot_test_info
+          changed_when: false
+          no_log: true
+
+        - name: Assert the test snapshot succeeded
+          ansible.builtin.assert:
+            that:
+              - snapshot_test_info.json.snapshots | length == 1
+              - snapshot_test_info.json.snapshots[0].snapshot == snapshot_test_snapshot
+              - snapshot_test_info.json.snapshots[0].state == 'SUCCESS'
+              - snapshot_test_index in snapshot_test_info.json.snapshots[0].indices
+            fail_msg: >-
+              The snapshot create/read proof failed with the shared read/write
+              S3 key.
+            quiet: true
+      always:
+        - name: Remove the test snapshot
+          ansible.builtin.uri:
+            url: >-
+              https://127.0.0.1:{{ elasticsearch_http_port }}/_snapshot/{{
+              elasticsearch_snapshot_repo_name }}/{{ snapshot_test_snapshot }}
+            method: DELETE
+            ca_path: "{{ elasticsearch_tls_ca_path }}"
+            user: elastic
+            password: "{{ elasticsearch_bootstrap_password }}"
+            force_basic_auth: true
+            status_code: [200, 404]
+          register: snapshot_test_final_cleanup_snapshot
+          changed_when: snapshot_test_final_cleanup_snapshot.status == 200
+          no_log: true
+          when: elasticsearch_snapshot_repo_enabled | bool
+
+        - name: Remove the test index
+          ansible.builtin.uri:
+            url: "https://127.0.0.1:{{ elasticsearch_http_port }}/{{ snapshot_test_index }}"
+            method: DELETE
+            ca_path: "{{ elasticsearch_tls_ca_path }}"
+            user: elastic
+            password: "{{ elasticsearch_bootstrap_password }}"
+            force_basic_auth: true
+            status_code: [200, 404]
+          register: snapshot_test_final_cleanup_index
+          changed_when: snapshot_test_final_cleanup_index.status == 200
+          no_log: true
+          when: elasticsearch_snapshot_repo_enabled | bool

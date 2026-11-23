@@ -9,7 +9,7 @@ Installs and configures a single-node Garage S3-compatible object store.
 - Configure a single-node layout with loopback-only listeners
 - Bootstrap the cluster layout through the admin API
 - Import the shared S3 credentials and create the snapshot bucket
-- Grant the shared key owner/read/write permissions
+- Grant the shared key read/write permissions without bucket ownership
 - Verify the layout, key, and bucket
 
 ## Required variables
@@ -28,6 +28,12 @@ storage_s3_access_key: "{{ secret_storage_s3_access_key }}"
 storage_s3_secret_key: "{{ secret_storage_s3_secret_key }}"
 ```
 
+## Bucket permissions
+
+The shared key gets read and write permissions only. Elasticsearch snapshots do not need bucket ownership, and the owner flag grants bucket administration that this key does not require.
+
+`AllowBucketKey` only activates permission flags; it cannot remove them. When an existing key still has owner access, the role removes it with `DenyBucketKey` before granting read/write. Both operations are idempotent.
+
 ## Security notes
 
 - Garage does not terminate TLS. S3, admin, and RPC listeners must remain on loopback. Use a TLS reverse proxy for external S3 clients.
@@ -40,4 +46,4 @@ Garage data is not backed up by this role. For disaster recovery, replicate the 
 
 ## Verification
 
-The role checks the service, admin API, active layout, shared key, and bucket permissions.
+The role checks the service, admin API, active layout, shared key, and read/write bucket permissions without owner access.

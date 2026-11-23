@@ -96,7 +96,7 @@ storage_s3_secret_key: "{{ secret_storage_s3_secret_key }}"
 
 - Garage imports the access key and creates the bucket.
 - Elasticsearch stores the access key/secret in its keystore and registers the bucket as its snapshot repository.
-- The bucket key has owner/read/write permissions.
+- The bucket key has read/write permissions only. Bucket ownership is unnecessary for snapshots and is removed with `DenyBucketKey` when present.
 - The S3 endpoint and listeners are loopback-only.
 
 ### Elasticsearch and Garage compatibility

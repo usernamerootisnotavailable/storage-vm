@@ -59,7 +59,9 @@ The role imports a pre-generated key rather than generating a secret on the host
 - Access key: 16 hex characters
 - Secret key: 64 hex characters
 - Bucket: shared `storage_s3_bucket`
-- Permissions: owner, read, write
+- Permissions: read, write
+
+Bucket ownership is unnecessary for Elasticsearch snapshots and would grant bucket administration that the shared key does not need. `AllowBucketKey` only activates permission flags, so the role removes owner access from an existing key with `DenyBucketKey` before granting read/write. Both operations are idempotent.
 
 The admin API is used because it avoids placing secrets in process arguments.
 
@@ -100,7 +102,7 @@ The role verifies:
 - Admin API availability
 - Active layout version and node role
 - Shared S3 key presence
-- Bucket owner/read/write permissions
+- Bucket read/write permissions with owner access removed
 
 ## Upgrade
 

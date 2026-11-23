@@ -54,6 +54,12 @@ echo "Verifying the host"
   playbooks/verify.yml \
   --extra-vars "@${secret_file}"
 
+echo "Testing Elasticsearch snapshot create/delete with the shared S3 key"
+"${ansible_playbook}" \
+  -i inventories/dev/hosts.yml \
+  playbooks/integration-snapshot.yml \
+  --extra-vars "@${secret_file}"
+
 echo "Checking idempotence"
 second_run="$("${ansible_playbook}" \
   -i inventories/dev/hosts.yml \

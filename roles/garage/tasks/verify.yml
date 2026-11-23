@@ -63,13 +63,15 @@
               | list | first | default({})) }}
       when: garage_manage_bucket | bool
 
-    - name: Assert the shared S3 key has full bucket access
+    - name: Assert the shared S3 key has read and write access without ownership
       ansible.builtin.assert:
         that:
           - garage_verify_key.accessKeyId is defined
-          - (garage_verify_key.permissions | default({})).owner | default(false)
           - (garage_verify_key.permissions | default({})).read | default(false)
           - (garage_verify_key.permissions | default({})).write | default(false)
-        fail_msg: The shared S3 key does not have owner/read/write access to the snapshot bucket.
+          - not ((garage_verify_key.permissions | default({})).owner | default(false))
+        fail_msg: >-
+          The shared S3 key must have read/write access to the snapshot bucket
+          and must not have owner access.
         quiet: true
       when: garage_manage_bucket | bool

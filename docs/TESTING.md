@@ -103,7 +103,7 @@ The same file is reused by converge and verify. It is never committed.
 
 ## Full-stack integration
 
-The integration target starts the development container, generates ephemeral credentials for every service, applies `site.yml`, runs verification, applies again, and asserts `changed=0`. The verification includes a Garage-backed Elasticsearch snapshot repository check and NGINX TLS routing to both Elasticsearch and Garage. Development NGINX uses generated certificates, so integration never contacts Let's Encrypt or Cloudflare.
+The integration target starts the development container, generates ephemeral credentials for every service, applies `site.yml`, and runs verification. It then creates a test index, creates and reads an Elasticsearch snapshot through the shared read/write Garage S3 key, and always deletes the snapshot and index. Finally it applies `site.yml` again and asserts `changed=0`. Verification also includes a Garage-backed snapshot repository check and NGINX TLS routing to both Elasticsearch and Garage. Development NGINX uses generated certificates, so integration never contacts Let's Encrypt or Cloudflare.
 
 ```bash
 make integration
@@ -120,7 +120,7 @@ The Docker host must provide `vm.max_map_count=262144`; the integration and `dev
 1. **lint** — `yamllint`, `ansible-lint`, `shellcheck`, policy checks, syntax check
 2. **secret-scan** — `gitleaks` with a pinned binary
 3. **molecule** — matrix over `common`, `postgresql`, `mariadb`, `garage`, `elasticsearch`, and `nginx`
-4. **integration** — full `site.yml` on the AlmaLinux 10 container, including the Garage S3 snapshot repository and NGINX TLS routing
+4. **integration** — full `site.yml` on the AlmaLinux 10 container, including the Garage S3 snapshot repository, an Elasticsearch snapshot create/read/delete proof with the shared read/write key, and NGINX TLS routing
 
 Requirements:
 
