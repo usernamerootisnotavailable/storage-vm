@@ -30,6 +30,7 @@ nginx_packages:
   - python3-firewall
 
 nginx_elasticsearch_upstream: "https://127.0.0.1:9200"
+nginx_elasticsearch_ssl_name: localhost
 nginx_elasticsearch_ca_source: /etc/elasticsearch/certs/ca.crt
 nginx_elasticsearch_ca_path: "{{ nginx_tls_dir }}/elasticsearch-ca.crt"
 nginx_elasticsearch_client_max_body_size: "100m"

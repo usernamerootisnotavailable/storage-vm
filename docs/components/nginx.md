@@ -70,6 +70,7 @@ Certbot creates the certificate under `/etc/letsencrypt/live/storage-host`. A de
 | `nginx_manage_firewall` | common firewall setting | Manage the 443 rich rules |
 | `nginx_verify_upstreams` | `true` | Probe ES/S3 after deployment |
 | `nginx_elasticsearch_upstream` | `https://127.0.0.1:9200` | Elasticsearch upstream |
+| `nginx_elasticsearch_ssl_name` | `localhost` | Name used to verify the Elasticsearch upstream certificate |
 | `nginx_s3_upstream` | `http://127.0.0.1:3900` | Garage S3 upstream |
 | `nginx_elasticsearch_ca_source` | `/etc/elasticsearch/certs/ca.crt` | ES CA copied for upstream verification |
 | `nginx_letsencrypt_email` | required for LE | ACME account email |
@@ -81,7 +82,7 @@ NGINX verifies the Elasticsearch HTTP certificate:
 
 - CA copied to `/etc/nginx/tls/elasticsearch-ca.crt`
 - `proxy_ssl_verify on`
-- `proxy_ssl_name 127.0.0.1`
+- `proxy_ssl_name localhost`
 - Client authentication remains end-to-end: Elasticsearch still returns `401` without credentials.
 
 The external request body limit defaults to `100m`.

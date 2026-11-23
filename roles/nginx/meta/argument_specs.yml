@@ -65,6 +65,9 @@ argument_specs:
       nginx_elasticsearch_upstream:
         type: str
         description: Elasticsearch upstream URL.
+      nginx_elasticsearch_ssl_name:
+        type: str
+        description: Name used to verify the Elasticsearch upstream certificate.
       nginx_elasticsearch_ca_source:
         type: str
         description: CA certificate used to verify the Elasticsearch upstream.

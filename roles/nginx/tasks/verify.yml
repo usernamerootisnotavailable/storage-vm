@@ -74,8 +74,12 @@
     - name: Assert the Elasticsearch host requires authentication
       ansible.builtin.assert:
         that:
-          - nginx_elasticsearch_probe.stdout == '401'
-        fail_msg: The Elasticsearch reverse proxy did not return 401 for an unauthenticated request.
+          - (nginx_elasticsearch_probe.stdout | trim) == '401'
+        fail_msg: >-
+          The Elasticsearch reverse proxy returned
+          {{ nginx_elasticsearch_probe.stdout | default('no status') | trim }}
+          instead of 401 for an unauthenticated request.
+          Curl error: {{ nginx_elasticsearch_probe.stderr | default('') | trim }}
         quiet: true
       when: nginx_enable_elasticsearch | bool
 
@@ -101,8 +105,12 @@
     - name: Assert the S3 host rejects anonymous access
       ansible.builtin.assert:
         that:
-          - nginx_s3_probe.stdout in ['403', '404']
-        fail_msg: The Garage S3 reverse proxy did not reject anonymous access.
+          - (nginx_s3_probe.stdout | trim) in ['403', '404']
+        fail_msg: >-
+          The Garage S3 reverse proxy returned
+          {{ nginx_s3_probe.stdout | default('no status') | trim }}
+          instead of rejecting anonymous access.
+          Curl error: {{ nginx_s3_probe.stderr | default('') | trim }}
         quiet: true
       when: nginx_enable_s3 | bool
 

@@ -166,6 +166,10 @@ jobs:
           log="${RUNNER_TEMP}/integration.log"
           docker compose -f docker/dev/compose.yml ps || true
           docker compose -f docker/dev/compose.yml logs || true
+          docker compose -f docker/dev/compose.yml exec -T storage01-dev \
+            sh -c 'tail -n 100 /var/log/nginx/error.log 2>/dev/null || true' || true
+          docker compose -f docker/dev/compose.yml exec -T storage01-dev \
+            sh -c 'journalctl -u elasticsearch --no-pager -n 80 2>/dev/null || true' || true
           docker ps -a
           if [[ -f "${log}" ]]; then
             {
