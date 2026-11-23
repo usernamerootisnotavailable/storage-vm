@@ -82,8 +82,9 @@
           ansible.builtin.uri:
             url: >-
               https://127.0.0.1:{{ elasticsearch_http_port }}/_snapshot/{{
-              elasticsearch_snapshot_repo_name }}/{{ snapshot_test_snapshot }}
+              elasticsearch_snapshot_repo_name }}/{{ snapshot_test_snapshot }}?wait_for_completion=true
             method: PUT
+            timeout: 120
             ca_path: "{{ elasticsearch_tls_ca_path }}"
             user: elastic
             password: "{{ elasticsearch_bootstrap_password }}"
@@ -92,7 +93,6 @@
             body:
               indices: "{{ snapshot_test_index }}"
               include_global_state: false
-              wait_for_completion: true
             status_code: [200]
           no_log: true
 
