@@ -27,9 +27,25 @@ provisioner:
         common_firewall_enabled: false
         common_require_selinux: false
         mariadb_manage_firewall: false
-        mariadb_allowed_cidrs: []
-        mariadb_app_password: >-
-          {{ lookup('password', '/tmp/storage-host-molecule-mariadb length=32 chars=ascii_letters,digits') }}
+        mariadb_apps:
+          - state: present
+            name: app
+            user: app
+            password: >-
+              {{ lookup('password', '/tmp/mol-mariadb-app length=32 chars=ascii_letters,digits') }}
+            databases:
+              - appdb
+            cidrs:
+              - 127.0.0.1/32
+          - state: present
+            name: analytics
+            user: analytics
+            password: >-
+              {{ lookup('password', '/tmp/mol-mariadb-analytics length=32 chars=ascii_letters,digits') }}
+            databases:
+              - analyticsdb
+            cidrs:
+              - 127.0.0.1/32
         mariadb_tls_mode: generated
         mariadb_backup_enabled: true
         mariadb_backup_dir: /var/backups/mariadb

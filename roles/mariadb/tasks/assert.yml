@@ -14,14 +14,113 @@
     fail_msg: mariadb_version must be a full version such as "11.8.10".
     quiet: true
 
-- name: Require a non-trivial application password
+- name: Validate MariaDB application attributes
   ansible.builtin.assert:
     that:
-      - mariadb_app_password is defined
-      - mariadb_app_password | length >= 16
-    fail_msg: Set mariadb_app_password from SOPS to a value of at least 16 characters.
+      - item.state | default('') in ['present', 'absent']
+      - item.name | default('') is match('^[a-z_][a-z0-9_]*$')
+      - item.name | default('') | length <= 64
+      - item.user | default('') is match('^[a-z_][a-z0-9_]*$')
+      - item.user | default('') | length <= 32
+      - >-
+        item.user | default('') not in
+        ['root', 'mysql', 'mariadb', 'mariadb.sys', 'mysql.sys',
+         'information_schema', 'performance_schema', 'sys', 'public', 'system']
+      - item.databases | default([]) | length > 0
+      - item.cidrs | default([]) | length > 0
+      - >-
+        item.cidrs | default([]) | length ==
+        (item.cidrs | default([]) | unique | length)
+    fail_msg: >-
+      Every mariadb_apps entry needs an explicit state of present or absent,
+      a lowercase name and non-reserved account, non-empty databases, and
+      non-empty unique source CIDRs.
     quiet: true
+  loop: "{{ mariadb_apps_redacted }}"
+  loop_control:
+    label: "{{ item.name | default('<unnamed>') }}"
+
+- name: Require strong MariaDB application passwords
+  ansible.builtin.assert:
+    that:
+      - item.password | default('') | length >= 16
+    fail_msg: >-
+      Every mariadb_apps entry requires a password of at least 16 characters,
+      sourced from SOPS.
+    quiet: true
+  loop: "{{ mariadb_apps }}"
+  loop_control:
+    label: "{{ item.name | default('<unnamed>') }}"
   no_log: true
+
+- name: Validate MariaDB application name and user uniqueness
+  ansible.builtin.assert:
+    that:
+      - >-
+        (mariadb_apps_redacted | map(attribute='name') | list | length) ==
+        (mariadb_apps_redacted | map(attribute='name') | list | unique | length)
+      - >-
+        (mariadb_apps_redacted | map(attribute='user') | list | length) ==
+        (mariadb_apps_redacted | map(attribute='user') | list | unique | length)
+      - >-
+        (mariadb_apps_redacted | map(attribute='databases') | flatten | list | length) ==
+        (mariadb_apps_redacted | map(attribute='databases') | flatten | list | unique | length)
+    fail_msg: >-
+      Application names and users must be unique, and every database name must
+      be unique across all mariadb_apps entries.
+    quiet: true
+
+- name: Validate MariaDB application database identifiers
+  ansible.builtin.assert:
+    that:
+      - item.1 is match('^[a-z_][a-z0-9_]*$')
+      - item.1 | length <= 64
+      - >-
+        item.1 not in
+        ['mysql', 'information_schema', 'performance_schema', 'sys']
+    fail_msg: >-
+      Application database names must be lowercase, non-system MariaDB
+      identifiers. Do not use mysql, information_schema, performance_schema,
+      or sys.
+    quiet: true
+  loop: "{{ mariadb_apps_redacted | subelements('databases') }}"
+  loop_control:
+    label: "{{ item.0.name | default('<unnamed>') }}:{{ item.1 }}"
+
+- name: Validate MariaDB application source CIDRs
+  ansible.builtin.assert:
+    that:
+      - item.1 != '0.0.0.0/0'
+      - item.1 != '::/0'
+      - item.1.split('/') | length == 2
+      - item.1.split('/')[1] | default('0') | int > 0
+      - >-
+        item.1 is match(
+        '^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}'
+        ~ '(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
+        ~ '/(?:3[0-2]|[12]?[0-9])$')
+        or
+        item.1 is match('^[0-9A-Fa-f:]+/(?:12[0-8]|1[01][0-9]|[1-9]?[0-9])$')
+    fail_msg: >-
+      Application CIDRs must be valid IPv4 or IPv6 networks with a non-zero
+      prefix. 0.0.0.0/0 and ::/0 are forbidden.
+    quiet: true
+  loop: "{{ mariadb_apps_redacted | subelements('cidrs') }}"
+  loop_control:
+    label: "{{ item.0.name | default('<unnamed>') }}:{{ item.1 }}"
+
+- name: Validate MariaDB application account host derivation
+  ansible.builtin.assert:
+    that:
+      - item.1 | mariadb_host_from_cidr | length > 0
+    fail_msg: >-
+      Every application CIDR must derive a MariaDB account host. Broader IPv6
+      networks are not supported because MariaDB netmask syntax is IPv4-only.
+      Use an exact IPv6 /128 source address.
+    quiet: true
+  loop: "{{ mariadb_apps_redacted | subelements('cidrs') }}"
+  loop_control:
+    label: "{{ item.0.name | default('<unnamed>') }}:{{ item.1 }}"
 
 - name: Validate the listener
   ansible.builtin.assert:
@@ -30,22 +129,25 @@
     fail_msg: mariadb_bind_address must be 127.0.0.1 or 0.0.0.0.
     quiet: true
 
-- name: Require firewall rules when listening on every interface
+- name: Require a reachable listener for non-loopback MariaDB applications
+  ansible.builtin.assert:
+    that:
+      - >-
+        mariadb_non_loopback_app_cidrs | length == 0 or
+        mariadb_bind_address != '127.0.0.1'
+    fail_msg: >-
+      A non-loopback MariaDB application CIDR requires mariadb_bind_address to
+      be 0.0.0.0. Loopback-only listeners cannot accept external applications.
+    quiet: true
+
+- name: Require app CIDRs when listening on every interface
   ansible.builtin.assert:
     that:
       - >-
         mariadb_bind_address != '0.0.0.0' or
         not (mariadb_manage_firewall | bool) or
-        mariadb_allowed_cidrs | length > 0
+        mariadb_app_cidrs | length > 0
     fail_msg: >-
-      Set mariadb_allowed_cidrs when MariaDB listens on every interface and
-      firewalld is managed.
-    quiet: true
-
-- name: Validate the application identifiers
-  ansible.builtin.assert:
-    that:
-      - mariadb_app_user is match('^[a-z_][a-z0-9_]*$')
-      - mariadb_app_database is match('^[a-z_][a-z0-9_]*$')
-    fail_msg: Application user and database names must be lowercase identifiers.
+      Define at least one present mariadb_apps entry with CIDRs when MariaDB
+      listens on every interface and firewalld is managed.
     quiet: true

@@ -19,33 +19,51 @@
   changed_when: false
   when: not ansible_check_mode
 
-- name: Verify the application connection over TLS
+- name: Read present MariaDB application databases
   ansible.mariadb.mariadb_query:
-    login_host: 127.0.0.1
-    login_port: "{{ mariadb_port }}"
-    login_user: "{{ mariadb_app_user }}"
-    login_password: "{{ mariadb_app_password }}"
-    login_db: "{{ mariadb_app_database }}"
-    ca_cert: "{{ mariadb_tls_ca_path }}"
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
     query: >-
-      SELECT DATABASE() AS database_name,
-             CURRENT_USER() AS current_user_name,
-             (SELECT VARIABLE_VALUE
-              FROM information_schema.SESSION_STATUS
-              WHERE VARIABLE_NAME = 'Ssl_cipher') AS ssl_cipher
-  register: mariadb_app_check
+      SELECT SCHEMA_NAME
+      FROM information_schema.SCHEMATA
+      WHERE SCHEMA_NAME = %s
+    positional_args:
+      - "{{ mariadb_present_database.1 }}"
+  loop: "{{ mariadb_present_apps_redacted | subelements('databases') }}"
+  loop_control:
+    loop_var: mariadb_present_database
+    label: "{{ mariadb_present_database.0.name }}:{{ mariadb_present_database.1 }}"
+  register: mariadb_present_databases_check
   changed_when: false
-  no_log: true
   when: not ansible_check_mode
 
-- name: Assert the application connection is correct
+- name: Assert present MariaDB application databases exist
   ansible.builtin.assert:
     that:
-      - mariadb_app_check.query_result[0][0].database_name == mariadb_app_database
-      - mariadb_app_check.query_result[0][0].current_user_name is search('^' ~ mariadb_app_user ~ '@')
-      - mariadb_app_check.query_result[0][0].ssl_cipher | default('') | length > 0
-    fail_msg: The application connection did not use the expected database, user, or TLS.
+      - (item.query_result[0] | length) == 1
+    fail_msg: >-
+      A present MariaDB application database is missing. Re-apply the role and
+      inspect information_schema.SCHEMATA.
     quiet: true
+  loop: "{{ mariadb_present_databases_check.results }}"
+  loop_control:
+    label: "{{ item.mariadb_present_database.0.name }}:{{ item.mariadb_present_database.1 }}"
+  when: not ansible_check_mode
+
+- name: Verify present MariaDB applications
+  ansible.builtin.include_tasks: verify-app.yml
+  loop: "{{ mariadb_present_apps_redacted }}"
+  loop_control:
+    loop_var: mariadb_app
+    label: "{{ mariadb_app.name }}"
+  when: not ansible_check_mode
+
+- name: Verify absent MariaDB applications
+  ansible.builtin.include_tasks: verify-absent-app.yml
+  loop: "{{ mariadb_absent_apps_redacted }}"
+  loop_control:
+    loop_var: mariadb_absent_app
+    label: "{{ mariadb_absent_app.name }}"
   when: not ansible_check_mode
 
 - name: Verify the TLS files

@@ -3,9 +3,9 @@ argument_specs:
   main:
     short_description: Install and configure MariaDB 11.8
     description:
-      - Installs MariaDB from the vendor EL10 repository, configures TLS and
-        SCRAM-compatible authentication, creates an application database and
-        users, and installs a logical backup timer.
+      - Installs MariaDB from the vendor EL10 repository, configures TLS,
+        creates one account per application and derived client host, creates
+        application databases and grants, and installs a logical backup timer.
     options:
       mariadb_version:
         type: str
@@ -51,31 +51,54 @@ argument_specs:
         type: list
         elements: str
         description: Packages required by the role.
-      mariadb_allowed_cidrs:
-        type: list
-        elements: str
-        description: Source CIDRs allowed through firewalld.
       mariadb_manage_firewall:
         type: bool
         description: Manage firewalld rules when client CIDRs are set.
       mariadb_firewall_zone:
         type: str
         description: firewalld zone.
-      mariadb_app_user:
-        type: str
-        description: Application user.
-      mariadb_app_database:
-        type: str
-        description: Application database.
-      mariadb_app_password:
-        type: str
-        required: true
-        no_log: true
-        description: Application password from SOPS.
-      mariadb_app_hosts:
+      mariadb_apps:
         type: list
-        elements: str
-        description: Host patterns for the application user.
+        elements: dict
+        description:
+          - External applications. Each present app receives its databases,
+            one account per source-CIDR-derived host, database grants scoped to
+            those databases, TLS requirement, and firewall exposure.
+          - Absent apps remove database grants and firewall access only. The
+            account and databases are not dropped.
+        options:
+          state:
+            type: str
+            required: true
+            choices:
+              - present
+              - absent
+            description: Whether access is present or removed.
+          name:
+            type: str
+            required: true
+            description: Unique lowercase application name.
+          user:
+            type: str
+            required: true
+            description: Unique lowercase MariaDB account name.
+          password:
+            type: str
+            required: true
+            no_log: true
+            description: Application password from SOPS, at least 16 characters.
+          databases:
+            type: list
+            elements: str
+            required: true
+            description: Non-empty list of globally unique lowercase database names.
+          cidrs:
+            type: list
+            elements: str
+            required: true
+            description:
+              - Non-empty list of source CIDRs. Default routes are forbidden.
+              - Account hosts are derived from these CIDRs.
       mariadb_max_connections:
         type: int
         description: Maximum connections.

@@ -1,0 +1,17 @@
+---
+- name: Create MariaDB application accounts for derived hosts
+  ansible.mariadb.mariadb_user:
+    name: "{{ mariadb_app.user }}"
+    host: "{{ mariadb_app_host }}"
+    password: "{{ mariadb_app.password }}"
+    priv: "{{ mariadb_app.databases | map('regex_replace', '$', '.*:ALL') | join('/') }}"
+    tls_requires:
+      SSL: true
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    state: present
+  loop: "{{ mariadb_app.cidrs | map('mariadb_host_from_cidr') | unique | sort }}"
+  loop_control:
+    loop_var: mariadb_app_host
+    label: "{{ mariadb_app.name }}@{{ mariadb_app_host }}"
+  no_log: true

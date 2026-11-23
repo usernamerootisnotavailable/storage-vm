@@ -1,0 +1,67 @@
+---
+- name: Find database grants for absent MariaDB applications
+  ansible.mariadb.mariadb_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    query: >-
+      SELECT DISTINCT d.Host, d.Db
+      FROM mysql.db AS d
+      INNER JOIN mysql.user AS u
+        ON u.User = d.User AND u.Host = d.Host
+      WHERE d.User = %s
+        AND FIND_IN_SET(d.Host, %s) > 0
+        AND FIND_IN_SET(d.Db, %s) > 0
+    positional_args:
+      - "{{ mariadb_absent_app.user }}"
+      - >-
+        {{ mariadb_absent_app.cidrs | map('mariadb_host_from_cidr')
+           | unique | join(',') }}
+      - "{{ mariadb_absent_app.databases | join(',') }}"
+  register: mariadb_absent_grants
+  changed_when: false
+
+- name: Revoke database privileges for absent MariaDB applications
+  ansible.mariadb.mariadb_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    query: >-
+      REVOKE ALL PRIVILEGES ON `{{ item.Db }}`.*
+      FROM '{{ mariadb_absent_app.user }}'@'{{ item.Host }}'
+  loop: "{{ mariadb_absent_grants.query_result[0] | default([]) }}"
+  loop_control:
+    label: "{{ mariadb_absent_app.name }}:{{ item.Db }}@{{ item.Host }}"
+  changed_when: true
+
+- name: Find remaining grant options for absent MariaDB applications
+  ansible.mariadb.mariadb_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    query: >-
+      SELECT DISTINCT d.Host, d.Db
+      FROM mysql.db AS d
+      INNER JOIN mysql.user AS u
+        ON u.User = d.User AND u.Host = d.Host
+      WHERE d.User = %s
+        AND d.Grant_priv = 'Y'
+        AND FIND_IN_SET(d.Host, %s) > 0
+        AND FIND_IN_SET(d.Db, %s) > 0
+    positional_args:
+      - "{{ mariadb_absent_app.user }}"
+      - >-
+        {{ mariadb_absent_app.cidrs | map('mariadb_host_from_cidr')
+           | unique | join(',') }}
+      - "{{ mariadb_absent_app.databases | join(',') }}"
+  register: mariadb_absent_grant_options
+  changed_when: false
+
+- name: Revoke remaining grant options for absent MariaDB applications
+  ansible.mariadb.mariadb_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    query: >-
+      REVOKE GRANT OPTION ON `{{ item.Db }}`.*
+      FROM '{{ mariadb_absent_app.user }}'@'{{ item.Host }}'
+  loop: "{{ mariadb_absent_grant_options.query_result[0] | default([]) }}"
+  loop_control:
+    label: "{{ mariadb_absent_app.name }}:{{ item.Db }}@{{ item.Host }}"
+  changed_when: true

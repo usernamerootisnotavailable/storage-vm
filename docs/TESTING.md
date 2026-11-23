@@ -114,13 +114,35 @@ postgresql_apps:
       - analyticsdb
     cidrs:
       - 127.0.0.1/32
+mariadb_apps:
+  - state: present
+    name: app
+    user: app
+    password: >-
+      {{ lookup('password', '/tmp/mol-mariadb-app length=32 chars=ascii_letters,digits') }}
+    databases:
+      - appdb
+    cidrs:
+      - 127.0.0.1/32
+  - state: present
+    name: analytics
+    user: analytics
+    password: >-
+      {{ lookup('password', '/tmp/mol-mariadb-analytics length=32 chars=ascii_letters,digits') }}
+    databases:
+      - analyticsdb
+    cidrs:
+      - 127.0.0.1/32
 ```
 
 The same files are reused by converge and verify. They are never committed.
+The MariaDB scenario proves two applications with distinct accounts and
+databases. The role's `mariadb_host_from_cidr` filter maps exact IPv4 hosts and
+IPv4 network/netmask hosts; broader IPv6 networks fail by design.
 
 ## Full-stack integration
 
-The integration target starts the development container, generates ephemeral credentials for every service, applies `site.yml`, and runs verification. It logs in as each present development PostgreSQL app over `127.0.0.1` with TLS and asserts the database, user, and SSL state. It then creates a test index, creates and reads an Elasticsearch snapshot through the shared read/write Garage S3 key, and always deletes the snapshot and index. Finally it applies `site.yml` again and asserts `changed=0`. Verification also includes a Garage-backed snapshot repository check and NGINX TLS routing to both Elasticsearch and Garage. Development NGINX uses generated certificates, so integration never contacts Let's Encrypt or Cloudflare.
+The integration target starts the development container, generates ephemeral credentials for every service, applies `site.yml`, and runs verification. It logs in as each present development PostgreSQL app over `127.0.0.1` with TLS and asserts the database, user, and SSL state. It also logs in as each present development MariaDB app over `127.0.0.1` with the MariaDB CA, asserting `DATABASE()`, `CURRENT_USER()`, and a non-empty `Ssl_cipher`. The MariaDB proof runs only when present `mariadb_apps` entries exist. It then creates a test index, creates and reads an Elasticsearch snapshot through the shared read/write Garage S3 key, and always deletes the snapshot and index. Finally it applies `site.yml` again and asserts `changed=0`. Verification also includes a Garage-backed snapshot repository check and NGINX TLS routing to both Elasticsearch and Garage. Development NGINX uses generated certificates, so integration never contacts Let's Encrypt or Cloudflare.
 
 ```bash
 make integration

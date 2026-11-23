@@ -71,3 +71,64 @@
       loop_control:
         label: "{{ item.app_database.0.name }}:{{ item.app_database.1 }}"
       no_log: true
+
+- name: Prove MariaDB application logins over TLS
+  hosts: storage
+  become: true
+  gather_facts: true
+  any_errors_fatal: true
+  tasks:
+    - name: Apply MariaDB defaults to the standalone integration play
+      ansible.builtin.set_fact:
+        mariadb_apps: "{{ mariadb_apps | default([], true) }}"
+        mariadb_port: "{{ mariadb_port | default(3306, true) }}"
+        mariadb_tls_ca_path: >-
+          {{ mariadb_tls_ca_path | default('/var/lib/mysql/tls/ca.crt', true) }}
+      no_log: true
+
+    - name: Log in as each present MariaDB application over TLS
+      ansible.mariadb.mariadb_query:
+        login_host: 127.0.0.1
+        login_port: "{{ mariadb_port }}"
+        login_user: "{{ app_database.0.user }}"
+        login_password: "{{ app_database.0.password }}"
+        login_db: "{{ app_database.1 }}"
+        ca_cert: "{{ mariadb_tls_ca_path }}"
+        query: >-
+          SELECT DATABASE() AS database_name,
+                 CURRENT_USER() AS current_user_name,
+                 (SELECT VARIABLE_VALUE
+                  FROM information_schema.SESSION_STATUS
+                  WHERE VARIABLE_NAME = 'Ssl_cipher') AS ssl_cipher
+      loop: >-
+        {{ mariadb_apps | selectattr('state', 'defined')
+           | selectattr('state', 'equalto', 'present')
+           | subelements('databases') }}
+      loop_control:
+        loop_var: app_database
+        label: "{{ app_database.0.name }}:{{ app_database.1 }}"
+      register: mariadb_app_login
+      changed_when: false
+      no_log: true
+      when: >-
+        mariadb_apps | selectattr('state', 'defined')
+        | selectattr('state', 'equalto', 'present') | list | length > 0
+
+    - name: Assert the MariaDB application database, user, and TLS usage
+      ansible.builtin.assert:
+        that:
+          - (item.query_result[0] | length) == 1
+          - item.query_result[0][0].database_name == item.app_database.1
+          - >-
+            item.query_result[0][0].current_user_name is search(
+            '^' ~ item.app_database.0.user ~ '@')
+          - item.query_result[0][0].ssl_cipher | default('') | length > 0
+        fail_msg: >-
+          A MariaDB application login did not use the expected database,
+          account, and TLS session.
+        quiet: true
+      loop: >-
+        {{ (mariadb_app_login | default({'results': []})).results | default([]) }}
+      loop_control:
+        label: "{{ item.app_database.0.name }}:{{ item.app_database.1 }}"
+      no_log: true

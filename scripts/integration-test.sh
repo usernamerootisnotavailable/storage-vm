@@ -14,7 +14,7 @@ generate_secrets() {
   {
     echo "---"
     printf 'secret_postgresql_app_password: "%s"\n' "$(openssl rand -hex 32)"
-    printf 'mariadb_app_password: "%s"\n' "$(openssl rand -hex 32)"
+    printf 'secret_mariadb_app_password: "%s"\n' "$(openssl rand -hex 32)"
     printf 'garage_rpc_secret: "%s"\n' "$(openssl rand -hex 32)"
     printf 'garage_admin_token: "%s"\n' "$(openssl rand -hex 32)"
     printf 'storage_s3_access_key: "%s"\n' "$(openssl rand -hex 8)"
@@ -24,7 +24,7 @@ generate_secrets() {
 }
 
 if [[ ! -f "${secret_file}" ]] ||
-  ! grep -q '^mariadb_app_password:' "${secret_file}" ||
+  ! grep -q '^secret_mariadb_app_password:' "${secret_file}" ||
   ! grep -q '^secret_postgresql_app_password:' "${secret_file}"; then
   generate_secrets
 fi

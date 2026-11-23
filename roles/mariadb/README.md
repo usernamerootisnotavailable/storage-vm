@@ -1,6 +1,7 @@
 # mariadb
 
-Installs and configures MariaDB 11.8 from the vendor AlmaLinux 10 repository.
+Installs and configures MariaDB 11.8 from the vendor AlmaLinux 10 repository for
+multiple external applications.
 
 ## Responsibilities
 
@@ -10,44 +11,108 @@ Installs and configures MariaDB 11.8 from the vendor AlmaLinux 10 repository.
 - Generate a private CA and server certificate, or validate provided TLS files
 - Enforce TLS for TCP connections
 - Install the vendor SELinux policy and apply file/port labels
-- Create the application database and users
-- Add firewalld rules for approved client CIDRs
+- Create application databases, accounts, database grants, and TLS requirements
+- Derive account hosts from application source CIDRs
+- Add or remove firewalld rules from application CIDRs
 - Install a daily logical backup timer
-- Verify an authenticated TLS connection
+- Verify accounts, databases, grants, and TLS requirements as root
 
-## Required variables
+## Interface variables
 
 ```yaml
 mariadb_version: "11.8.10"
-mariadb_app_password: "{{ secret_mariadb_app_password }}"
+mariadb_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_mariadb_app_password | mandatory }}"
+    databases:
+      - appdb
+    cidrs:
+      - 127.0.0.1/32
 ```
 
 The version is pinned in `inventories/<env>/group_vars/storage/versions.yml`.
-The password must come from an encrypted SOPS file.
+Every app password must come from an encrypted SOPS file and be at least 16
+characters. The baseline key is `secret_mariadb_app_password`; additional apps
+use `secret_mariadb_<name>_password`.
+
+Each app entry requires:
+
+| Field | Description |
+|---|---|
+| `state` | `present` or `absent`; every entry must set it explicitly |
+| `name` | Unique lowercase application name |
+| `user` | Unique lowercase MariaDB account name |
+| `password` | SOPS-sourced password, at least 16 characters |
+| `databases` | Non-empty list of globally unique lowercase database names |
+| `cidrs` | Non-empty list of source CIDRs; default routes are forbidden |
+
+There are no extension or connection-limit fields for MariaDB.
 
 ## Common overrides
 
 ```yaml
 mariadb_port: 3306
 mariadb_bind_address: "127.0.0.1"
-mariadb_allowed_cidrs: []
 mariadb_tls_mode: generated
-mariadb_app_user: app
-mariadb_app_database: appdb
 mariadb_backup_enabled: true
 ```
 
 Production should use `mariadb_tls_mode: provided` with CA-issued certificates.
 
+## Account host derivation
+
+`mariadb_host_from_cidr` is a role-local filter:
+
+- IPv4 `/32` becomes the exact address.
+- Broader IPv4 CIDRs become `network/netmask`, for example
+  `10.20.0.0/16` becomes `10.20.0.0/255.255.0.0`.
+- IPv6 `/128` becomes the exact address.
+- Broader IPv6 CIDRs fail because MariaDB account netmask syntax is IPv4-only.
+
+Invalid CIDRs fail with an explicit error. No application account is created for
+`localhost` or `%`.
+
+## Application lifecycle
+
+- `state: present` creates or updates the app databases, one account per derived
+  host, database-scoped grants, and `REQUIRE SSL`. Re-applying restores full
+  database grants.
+- `state: absent` removes `mysql.db` grants and firewall access only. The account
+  and databases are retained. Data removal is manual.
+- Each account receives `ALL` privileges only on the app's databases and no
+  global privileges.
+- A non-loopback app CIDR requires `mariadb_bind_address: "0.0.0.0"`.
+- Do not add raw `GRANT` statements or manual accounts. Extend `mariadb_apps`.
+
 ## Authentication
 
 - Local root uses the `unix_socket` plugin.
 - Anonymous accounts and remote root access are removed.
-- Application users are created for each entry in `mariadb_app_hosts`.
-- Every non-localhost application user requires TLS.
+- Every present app account requires TLS, including loopback sources.
+- The role does not authenticate as app users. App deployments verify their own
+  connectivity.
+
+## Verification
+
+The role checks:
+
+- Service state and `mariadb-admin ping`
+- Every present database exists
+- Every present account exists for every derived host
+- `mysql.user.ssl_type` is `ANY`, `X509`, or `SPECIFIED`
+- Every declared database has a `mysql.db` grant for every derived host
+- Absent apps have no database grants for their declared databases and hosts
+- TLS file permissions
+- Backup timer enablement
 
 ## Notes
 
-- MariaDB ships an SELinux policy module. The role installs it and keeps SELinux enforcing; the vendor README recommends permissive, but production validation must use enforcing mode.
-- Local backups are not off-host backups. Copy `mariadb_backup_dir` to a separate system.
+- MariaDB ships an SELinux policy module. The role installs it and keeps SELinux
+  enforcing; the vendor README recommends permissive, but production validation
+  must use enforcing mode.
+- Local backups are not off-host backups. Copy `mariadb_backup_dir` to a separate
+  system.
 - The `require_secure_transport` setting remains enabled.
+- The role does not drop accounts or databases for `state: absent`.

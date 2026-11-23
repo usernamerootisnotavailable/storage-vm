@@ -13,7 +13,15 @@ postgresql_apps:
     rotate_password: false
 postgresql_backup_enabled: false
 
-mariadb_app_password: "{{ secret_mariadb_app_password | mandatory }}"
+mariadb_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_mariadb_app_password | mandatory }}"
+    databases:
+      - appdb
+    cidrs:
+      - 127.0.0.1/32
 mariadb_backup_enabled: false
 
 storage_s3_endpoint: "http://127.0.0.1:3900"

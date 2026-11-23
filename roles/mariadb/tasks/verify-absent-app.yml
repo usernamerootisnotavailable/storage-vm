@@ -1,0 +1,29 @@
+---
+- name: Read database grants for absent MariaDB applications
+  ansible.mariadb.mariadb_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    query: >-
+      SELECT d.Host, d.Db
+      FROM mysql.db AS d
+      WHERE d.User = %s
+        AND FIND_IN_SET(d.Host, %s) > 0
+        AND FIND_IN_SET(d.Db, %s) > 0
+    positional_args:
+      - "{{ mariadb_absent_app.user }}"
+      - >-
+        {{ mariadb_absent_app.cidrs | map('mariadb_host_from_cidr')
+           | unique | join(',') }}
+      - "{{ mariadb_absent_app.databases | join(',') }}"
+  register: mariadb_absent_grant_check
+  changed_when: false
+
+- name: Assert absent MariaDB applications have no database grants
+  ansible.builtin.assert:
+    that:
+      - (mariadb_absent_grant_check.query_result[0] | length) == 0
+    fail_msg: >-
+      An absent MariaDB application still has database grants for a declared
+      database and derived host. Re-apply the role to remove access. The
+      account and databases are retained; data removal is manual.
+    quiet: true

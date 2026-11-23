@@ -177,6 +177,36 @@ Garage and Elasticsearch consume these values. NGINX uses the Elasticsearch CA p
 
 Let's Encrypt mode also consumes `secret_nginx_cloudflare_api_token` through the `nginx_cloudflare_api_token` mapping. Generated certificate mode does not.
 
+## Database application contracts
+
+PostgreSQL and MariaDB use explicit application lists. The storage host owns
+accounts, databases, grants, TLS requirements, and firewall exposure; app
+deployments own migrations and connectivity. Do not add raw authentication or
+grant configuration outside these lists.
+
+MariaDB applications use:
+
+```yaml
+mariadb_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_mariadb_app_password }}"
+    databases:
+      - appdb
+    cidrs:
+      - 127.0.0.1/32
+```
+
+MariaDB has no `pg_hba.conf`. Its network scope is the account host derived from
+`cidrs` plus database grants in `mysql.db`. Exact IPv4 `/32` and IPv6 `/128`
+sources become exact account hosts; broader IPv4 CIDRs use
+`network/netmask`. Broader IPv6 CIDRs are rejected because MariaDB netmask
+syntax is IPv4-only. Every present account requires SSL.
+
+`mariadb_apps` entries have no extension or connection-limit fields. Use
+`postgresql_apps` for those PostgreSQL-only features.
+
 ## Versions
 
 - Versions live in `inventories/<env>/group_vars/storage/versions.yml`.
@@ -202,6 +232,20 @@ postgresql_apps:
     name: app
     user: app
     password: "{{ secret_postgresql_app_password }}"
+    databases:
+      - appdb
+    cidrs:
+      - 127.0.0.1/32
+
+# secrets.sops.yml (encrypted)
+secret_mariadb_app_password: "..."
+
+# main.yml
+mariadb_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_mariadb_app_password }}"
     databases:
       - appdb
     cidrs:

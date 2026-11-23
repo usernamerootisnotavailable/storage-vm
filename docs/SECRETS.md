@@ -93,8 +93,9 @@ The script:
 - Removes the temporary file on exit.
 - Refuses to overwrite an existing secrets file.
 
-The script creates only the baseline `secret_postgresql_app_password`. Add
-secrets for additional PostgreSQL apps manually with `sops`.
+The script creates only the baseline `secret_postgresql_app_password` and
+`secret_mariadb_app_password`. Add secrets for additional PostgreSQL or MariaDB
+apps manually with `sops`.
 
 To edit an existing file:
 
@@ -126,8 +127,9 @@ secret_nginx_cloudflare_api_token: "..."
 ```
 
 The baseline PostgreSQL secret is `secret_postgresql_app_password`. Additional
-apps use a distinct key such as `secret_postgresql_<name>_password`. Never
-reuse one password across applications.
+apps use a distinct key such as `secret_postgresql_<name>_password`. The baseline
+MariaDB secret is `secret_mariadb_app_password`; additional MariaDB apps use
+`secret_mariadb_<name>_password`. Never reuse one password across applications.
 
 Map them to role variables in `group_vars/storage/main.yml`:
 
@@ -141,7 +143,15 @@ postgresql_apps:
       - appdb
     cidrs:
       - 127.0.0.1/32
-mariadb_app_password: "{{ secret_mariadb_app_password }}"
+mariadb_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_mariadb_app_password }}"
+    databases:
+      - appdb
+    cidrs:
+      - 127.0.0.1/32
 garage_rpc_secret: "{{ secret_garage_rpc_secret }}"
 garage_admin_token: "{{ secret_garage_admin_token }}"
 storage_s3_access_key: "{{ secret_storage_s3_access_key }}"
@@ -195,7 +205,10 @@ Masking is defense in depth, not permission to print secrets:
 
 For PostgreSQL, password changes are skipped per app by default to preserve idempotence. Set `rotate_password: true` on the affected `postgresql_apps` entry for the rotation run, then return it to `false`. Other apps keep `rotate_password: false`.
 
-MariaDB application users are updated by `ansible.mariadb.mariadb_user` when the password changes.
+MariaDB application accounts are updated by `ansible.mariadb.mariadb_user` when
+the password of a present `mariadb_apps` entry changes. Setting an app to
+`state: absent` removes database grants and firewall access but does not change
+or drop the account.
 
 ### Rotate the Elasticsearch elastic password
 

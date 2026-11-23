@@ -26,10 +26,20 @@ postgresql_backup_enabled: true
 # Non-loopback app CIDRs require a reachable listener address:
 # postgresql_listen_addresses: "10.20.0.5"
 
-mariadb_app_password: "{{ secret_mariadb_app_password | mandatory }}"
+mariadb_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_mariadb_app_password | mandatory }}"
+    databases:
+      - appdb
+    # REQUIRED: replace with the Kubernetes egress CIDR that reaches storage01.
+    cidrs:
+      - 10.20.0.0/16
 mariadb_tls_mode: provided
 mariadb_backup_enabled: true
 # Tune innodb_buffer_pool_size and max_connections for the production host.
+# A non-loopback app CIDR requires mariadb_bind_address: "0.0.0.0".
 
 storage_s3_endpoint: "http://127.0.0.1:3900"
 storage_s3_region: "garage"

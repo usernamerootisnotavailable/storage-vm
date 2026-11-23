@@ -1,0 +1,75 @@
+---
+- name: Read present MariaDB application accounts
+  ansible.mariadb.mariadb_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    query: >-
+      SELECT User, Host, ssl_type
+      FROM mysql.user
+      WHERE User = %s AND FIND_IN_SET(Host, %s) > 0
+    positional_args:
+      - "{{ mariadb_app.user }}"
+      - >-
+        {{ mariadb_app.cidrs | map('mariadb_host_from_cidr')
+           | unique | join(',') }}
+  register: mariadb_app_account_check
+  changed_when: false
+
+- name: Assert present MariaDB application accounts require TLS
+  ansible.builtin.assert:
+    that:
+      - >-
+        (mariadb_app_account_check.query_result[0] | length) ==
+        (mariadb_app.cidrs | map('mariadb_host_from_cidr') | unique | list | length)
+      - >-
+        (mariadb_app_account_check.query_result[0] | map(attribute='Host')
+         | sort) ==
+        (mariadb_app.cidrs | map('mariadb_host_from_cidr') | unique | sort)
+      - >-
+        (mariadb_app_account_check.query_result[0]
+         | rejectattr('ssl_type', 'in', ['ANY', 'X509', 'SPECIFIED'])
+         | list | length) == 0
+    fail_msg: >-
+      A present MariaDB application account is missing for a derived host, or
+      the account does not require SSL. Re-apply the role and inspect
+      mysql.user.ssl_type.
+    quiet: true
+
+- name: Read present MariaDB application database grants
+  ansible.mariadb.mariadb_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    query: >-
+      SELECT d.Host, d.Db
+      FROM mysql.db AS d
+      WHERE d.User = %s
+        AND FIND_IN_SET(d.Host, %s) > 0
+        AND FIND_IN_SET(d.Db, %s) > 0
+    positional_args:
+      - "{{ mariadb_app.user }}"
+      - >-
+        {{ mariadb_app.cidrs | map('mariadb_host_from_cidr')
+           | unique | join(',') }}
+      - "{{ mariadb_app.databases | join(',') }}"
+  register: mariadb_app_grant_check
+  changed_when: false
+
+- name: Assert every present MariaDB application database is granted
+  ansible.builtin.assert:
+    that:
+      - >-
+        (mariadb_app_grant_check.query_result[0] | length) ==
+        ((mariadb_app.cidrs | map('mariadb_host_from_cidr') | unique | list | length)
+         * (mariadb_app.databases | length))
+      - >-
+        (mariadb_app_grant_check.query_result[0] | map(attribute='Host')
+         | unique | sort) ==
+        (mariadb_app.cidrs | map('mariadb_host_from_cidr') | unique | sort)
+      - >-
+        (mariadb_app_grant_check.query_result[0] | map(attribute='Db')
+         | unique | sort) ==
+        (mariadb_app.databases | sort)
+    fail_msg: >-
+      A present MariaDB application account is missing a database grant for
+      one of its derived hosts. Re-apply the role and inspect mysql.db.
+    quiet: true

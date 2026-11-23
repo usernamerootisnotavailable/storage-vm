@@ -28,15 +28,39 @@ mariadb_packages:
   - python3-firewall
   - python3-libselinux
 
-mariadb_allowed_cidrs: []
 mariadb_manage_firewall: "{{ common_firewall_enabled | default(true) }}"
 mariadb_firewall_zone: "{{ common_firewall_zone | default('public') }}"
 
-mariadb_app_user: app
-mariadb_app_database: appdb
-mariadb_app_hosts:
-  - localhost
-  - 127.0.0.1
+# Each app is an external client. The storage host owns accounts, databases,
+# database grants, and firewall exposure; app deployments own migrations.
+mariadb_apps: []
+
+# Derived values. Do not set these in inventory.
+mariadb_present_apps: >-
+  {{ mariadb_apps | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'present') | list }}
+mariadb_absent_apps: >-
+  {{ mariadb_apps | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'absent') | list }}
+mariadb_app_cidrs: >-
+  {{ mariadb_present_apps | map(attribute='cidrs') | flatten | unique | sort }}
+mariadb_absent_app_cidrs: >-
+  {{ mariadb_absent_apps | map(attribute='cidrs') | flatten | unique | sort }}
+mariadb_absent_only_app_cidrs: >-
+  {{ mariadb_absent_app_cidrs | difference(mariadb_app_cidrs) }}
+mariadb_non_loopback_app_cidrs: >-
+  {{ mariadb_app_cidrs | reject('match', '^127\.')
+     | reject('equalto', '::1/128') | list }}
+
+# Redacted copies keep app passwords out of validation and loop failure output.
+mariadb_apps_redacted: >-
+  {{ mariadb_apps | map('combine', {'password': 'redacted'}) | list }}
+mariadb_present_apps_redacted: >-
+  {{ mariadb_apps_redacted | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'present') | list }}
+mariadb_absent_apps_redacted: >-
+  {{ mariadb_apps_redacted | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'absent') | list }}
 
 mariadb_max_connections: 100
 mariadb_innodb_buffer_pool_size: "256M"

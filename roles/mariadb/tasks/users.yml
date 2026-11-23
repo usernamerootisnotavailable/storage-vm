@@ -57,26 +57,28 @@
         login_unix_socket: "{{ mariadb_socket }}"
         login_user: root
 
-    - name: Create the application database
+    - name: Create MariaDB application databases
       ansible.mariadb.mariadb_db:
-        name: "{{ mariadb_app_database }}"
+        name: "{{ item.1 }}"
         encoding: "{{ mariadb_character_set }}"
         collation: "{{ mariadb_collation }}"
         login_unix_socket: "{{ mariadb_socket }}"
         login_user: root
         state: present
-
-    - name: Create the application users
-      ansible.mariadb.mariadb_user:
-        name: "{{ mariadb_app_user }}"
-        host: "{{ item }}"
-        password: "{{ mariadb_app_password }}"
-        priv: "{{ mariadb_app_database }}.*:ALL"
-        tls_requires: "{{ {'SSL': true} if item != 'localhost' else omit }}"
-        login_unix_socket: "{{ mariadb_socket }}"
-        login_user: root
-        state: present
-      loop: "{{ mariadb_app_hosts }}"
+      loop: "{{ mariadb_present_apps_redacted | subelements('databases') }}"
       loop_control:
-        label: "{{ item }}"
-      no_log: true
+        label: "{{ item.0.name }}:{{ item.1 }}"
+
+    - name: Create MariaDB application accounts
+      ansible.builtin.include_tasks: users-app.yml
+      loop: "{{ mariadb_present_apps }}"
+      loop_control:
+        loop_var: mariadb_app
+        label: "{{ mariadb_app.name }}"
+
+    - name: Remove database grants for absent MariaDB applications
+      ansible.builtin.include_tasks: revoke-app.yml
+      loop: "{{ mariadb_absent_apps_redacted }}"
+      loop_control:
+        loop_var: mariadb_absent_app
+        label: "{{ mariadb_absent_app.name }}"
