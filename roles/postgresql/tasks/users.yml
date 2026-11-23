@@ -18,6 +18,24 @@
       become_user: postgres
       no_log: true
 
+    # community.postgresql skips conn_limit when no_password_changes is true.
+    # Enforce the role flags and limit without passing a password so
+    # rotate_password: false still preserves the existing credential.
+    - name: Enforce PostgreSQL application role attributes and connection limits
+      community.postgresql.postgresql_user:
+        name: "{{ item.user }}"
+        role_attr_flags: "LOGIN,NOSUPERUSER,NOCREATEDB,NOCREATEROLE"
+        conn_limit: "{{ item.connection_limit | default(-1) }}"
+        no_password_changes: false
+        login_unix_socket: "{{ postgresql_socket_dir }}"
+        state: present
+      loop: "{{ postgresql_present_apps_redacted }}"
+      loop_control:
+        label: "{{ item.name }}"
+      become: true
+      become_user: postgres
+      when: not (item.rotate_password | default(false) | bool)
+
     - name: Create PostgreSQL application databases
       community.postgresql.postgresql_db:
         name: "{{ item.1 }}"
