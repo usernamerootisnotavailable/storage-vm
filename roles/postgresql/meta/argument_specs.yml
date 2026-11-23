@@ -4,7 +4,8 @@ argument_specs:
     short_description: Install and configure PostgreSQL 18
     description:
       - Installs PostgreSQL from PGDG, configures TLS and SCRAM authentication,
-        creates an application role and database, and installs a backup timer.
+        creates application roles, databases, and extensions, and installs a
+        backup timer.
     options:
       postgresql_version:
         type: str
@@ -16,10 +17,6 @@ argument_specs:
       postgresql_listen_addresses:
         type: str
         description: Comma-separated listener addresses.
-      postgresql_allowed_cidrs:
-        type: list
-        elements: str
-        description: Source CIDRs allowed through firewalld.
       postgresql_manage_firewall:
         type: bool
         description: Manage firewalld rules when client CIDRs are set.
@@ -54,20 +51,59 @@ argument_specs:
       postgresql_socket_dir:
         type: str
         description: Unix socket directory.
-      postgresql_app_user:
-        type: str
-        description: Application role name.
-      postgresql_app_database:
-        type: str
-        description: Application database name.
-      postgresql_app_password:
-        type: str
-        required: true
-        no_log: true
-        description: Application password, sourced from SOPS.
-      postgresql_rotate_passwords:
-        type: bool
-        description: Allow password changes on an existing role.
+      postgresql_apps:
+        type: list
+        elements: dict
+        description:
+          - External applications. Each present app receives a role, its
+            databases, requested extensions, per-database HBA rules, and
+            firewall exposure from its CIDRs.
+          - Absent apps remove HBA and firewall access only. The role and
+            databases are not dropped.
+        options:
+          state:
+            type: str
+            required: true
+            choices:
+              - present
+              - absent
+            description: Whether access is present or removed.
+          name:
+            type: str
+            required: true
+            description: Unique lowercase application name.
+          user:
+            type: str
+            required: true
+            description: Unique lowercase PostgreSQL role name.
+          password:
+            type: str
+            required: true
+            no_log: true
+            description: Application password from SOPS, at least 16 characters.
+          databases:
+            type: list
+            elements: str
+            required: true
+            description: Non-empty list of unique lowercase database names.
+          cidrs:
+            type: list
+            elements: str
+            required: true
+            description: Non-empty list of source CIDRs. Default routes are forbidden.
+          extensions:
+            type: list
+            elements: str
+            default: []
+            description: Extensions to create in every database for this app.
+          connection_limit:
+            type: int
+            default: -1
+            description: PostgreSQL connection limit; must be -1 or greater.
+          rotate_password:
+            type: bool
+            default: false
+            description: Allow the password of an existing role to be updated.
       postgresql_max_connections:
         type: int
         description: Maximum connections.
@@ -95,10 +131,6 @@ argument_specs:
       postgresql_timezone:
         type: str
         description: Database timezone.
-      postgresql_extra_hba_entries:
-        type: list
-        elements: str
-        description: Additional raw pg_hba.conf lines.
       postgresql_tls_enabled:
         type: bool
         description: Enable TLS.

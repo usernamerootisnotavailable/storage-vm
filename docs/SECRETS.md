@@ -93,6 +93,9 @@ The script:
 - Removes the temporary file on exit.
 - Refuses to overwrite an existing secrets file.
 
+The script creates only the baseline `secret_postgresql_app_password`. Add
+secrets for additional PostgreSQL apps manually with `sops`.
+
 To edit an existing file:
 
 ```bash
@@ -122,10 +125,22 @@ secret_elasticsearch_bootstrap_password: "..."
 secret_nginx_cloudflare_api_token: "..."
 ```
 
+The baseline PostgreSQL secret is `secret_postgresql_app_password`. Additional
+apps use a distinct key such as `secret_postgresql_<name>_password`. Never
+reuse one password across applications.
+
 Map them to role variables in `group_vars/storage/main.yml`:
 
 ```yaml
-postgresql_app_password: "{{ secret_postgresql_app_password }}"
+postgresql_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_postgresql_app_password }}"
+    databases:
+      - appdb
+    cidrs:
+      - 127.0.0.1/32
 mariadb_app_password: "{{ secret_mariadb_app_password }}"
 garage_rpc_secret: "{{ secret_garage_rpc_secret }}"
 garage_admin_token: "{{ secret_garage_admin_token }}"
@@ -178,7 +193,7 @@ Masking is defense in depth, not permission to print secrets:
 3. Verify the service accepts the new credential.
 4. Revoke the old credential at the source.
 
-For PostgreSQL, password changes are skipped by default to preserve idempotence. Set `postgresql_rotate_passwords: true` for the rotation run, then return it to `false`.
+For PostgreSQL, password changes are skipped per app by default to preserve idempotence. Set `rotate_password: true` on the affected `postgresql_apps` entry for the rotation run, then return it to `false`. Other apps keep `rotate_password: false`.
 
 MariaDB application users are updated by `ansible.mariadb.mariadb_user` when the password changes.
 

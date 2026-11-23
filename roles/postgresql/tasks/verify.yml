@@ -20,55 +20,215 @@
   changed_when: false
   when: not ansible_check_mode
 
-- name: Verify the application connection over the configured transport
-  community.postgresql.postgresql_query:
-    login_host: 127.0.0.1
-    login_port: "{{ postgresql_port }}"
-    login_user: "{{ postgresql_app_user }}"
-    login_password: "{{ postgresql_app_password }}"
-    login_db: "{{ postgresql_app_database }}"
-    query: >-
-      SELECT current_database() AS database,
-             current_user AS username,
-             (SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()) AS ssl
-  environment:
-    PGSSLMODE: "{{ 'require' if postgresql_tls_enabled else 'disable' }}"
-  register: postgresql_app_check
-  changed_when: false
-  no_log: true
-  when: not ansible_check_mode
-
-- name: Assert the application connection is correct
-  ansible.builtin.assert:
-    that:
-      - postgresql_app_check.query_result[0].database == postgresql_app_database
-      - postgresql_app_check.query_result[0].username == postgresql_app_user
-      - (postgresql_app_check.query_result[0].ssl | bool) == (postgresql_tls_enabled | bool)
-    fail_msg: The application connection did not use the expected database, role, or TLS mode.
-    quiet: true
-  when: not ansible_check_mode
-
-- name: Verify the application database owner
+- name: Read PostgreSQL HBA parse errors
   community.postgresql.postgresql_query:
     login_unix_socket: "{{ postgresql_socket_dir }}"
     query: >-
-      SELECT pg_get_userbyid(datdba) AS owner
-      FROM pg_database
-      WHERE datname = %s
-    positional_args:
-      - "{{ postgresql_app_database }}"
+      SELECT count(*) AS error_count
+      FROM pg_hba_file_rules
+      WHERE error IS NOT NULL
   become: true
   become_user: postgres
-  register: postgresql_database_check
+  register: postgresql_hba_check
   changed_when: false
   when: not ansible_check_mode
 
-- name: Assert the application database owner is correct
+- name: Assert pg_hba.conf has no parse errors
   ansible.builtin.assert:
     that:
-      - postgresql_database_check.query_result | length == 1
-      - postgresql_database_check.query_result[0].owner | default('') == postgresql_app_user
-    fail_msg: The application database is missing or has the wrong owner.
+      - postgresql_hba_check.query_result[0].error_count | int == 0
+    fail_msg: >-
+      pg_hba.conf contains invalid rules. Run the PostgreSQL role and inspect
+      pg_hba_file_rules before reloading the service.
+    quiet: true
+  when: not ansible_check_mode
+
+- name: Read broad PostgreSQL HBA rules
+  community.postgresql.postgresql_query:
+    login_unix_socket: "{{ postgresql_socket_dir }}"
+    query: >-
+      SELECT count(*) AS broad_rule_count
+      FROM pg_hba_file_rules
+      WHERE type IN ('host', 'hostssl')
+        AND database @> ARRAY['all']::text[]
+        AND user_name @> ARRAY['all']::text[]
+  become: true
+  become_user: postgres
+  register: postgresql_hba_broad
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert pg_hba.conf has no broad host rules
+  ansible.builtin.assert:
+    that:
+      - postgresql_hba_broad.query_result[0].broad_rule_count | int == 0
+    fail_msg: >-
+      pg_hba.conf contains a host or hostssl rule for all databases and all
+      users. Access must be scoped to postgresql_apps.
+    quiet: true
+  when: not ansible_check_mode
+
+- name: Read PostgreSQL application role attributes
+  community.postgresql.postgresql_query:
+    login_unix_socket: "{{ postgresql_socket_dir }}"
+    query: >-
+      SELECT rolname, rolcanlogin, rolsuper, rolcreatedb, rolcreaterole,
+             rolconnlimit
+      FROM pg_roles
+      WHERE rolname = %s
+    positional_args:
+      - "{{ app.user }}"
+  loop: "{{ postgresql_present_apps_redacted }}"
+  loop_control:
+    loop_var: app
+    label: "{{ app.name }}"
+  become: true
+  become_user: postgres
+  register: postgresql_app_role_check
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert PostgreSQL application role attributes
+  ansible.builtin.assert:
+    that:
+      - (item.query_result | length) == 1
+      - (item.query_result[0] | default({})).rolcanlogin | default(false) | bool
+      - not ((item.query_result[0] | default({})).rolsuper | default(false) | bool)
+      - not ((item.query_result[0] | default({})).rolcreatedb | default(false) | bool)
+      - not ((item.query_result[0] | default({})).rolcreaterole | default(false) | bool)
+      - >-
+        (item.query_result[0] | default({})).rolconnlimit | default(-999) | int ==
+        (item.app.connection_limit | default(-1) | int)
+    fail_msg: >-
+      A present application role is missing or does not have LOGIN with
+      NOSUPERUSER, NOCREATEDB, NOCREATEROLE, and the expected connection limit.
+    quiet: true
+  loop: "{{ postgresql_app_role_check.results }}"
+  loop_control:
+    label: "{{ item.app.name }}"
+  when: not ansible_check_mode
+
+- name: Read PostgreSQL application database owners
+  community.postgresql.postgresql_query:
+    login_unix_socket: "{{ postgresql_socket_dir }}"
+    query: >-
+      SELECT datname, pg_get_userbyid(datdba) AS owner
+      FROM pg_database
+      WHERE datname = ANY(%s)
+    positional_args:
+      - "{{ app.databases }}"
+  loop: "{{ postgresql_present_apps_redacted }}"
+  loop_control:
+    loop_var: app
+    label: "{{ app.name }}"
+  become: true
+  become_user: postgres
+  register: postgresql_app_database_check
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert PostgreSQL application database ownership
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.query_result | length) ==
+        (item.app.databases | length)
+      - >-
+        (item.query_result | map(attribute='datname') | sort) ==
+        (item.app.databases | sort)
+      - >-
+        (item.query_result | map(attribute='owner') | unique | list) ==
+        [item.app.user]
+    fail_msg: >-
+      A present application database is missing or is not owned by its
+      application user.
+    quiet: true
+  loop: "{{ postgresql_app_database_check.results }}"
+  loop_control:
+    label: "{{ item.app.name }}"
+  when: not ansible_check_mode
+
+- name: List installed PostgreSQL extensions in each application database
+  community.postgresql.postgresql_query:
+    login_unix_socket: "{{ postgresql_socket_dir }}"
+    login_db: "{{ app_database.1 }}"
+    query: SELECT extname FROM pg_extension
+  loop: "{{ postgresql_present_apps_redacted | subelements('databases') }}"
+  loop_control:
+    loop_var: app_database
+    label: "{{ app_database.0.name }}:{{ app_database.1 }}"
+  become: true
+  become_user: postgres
+  register: postgresql_app_extension_check
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert requested PostgreSQL extensions exist
+  ansible.builtin.assert:
+    that:
+      - >-
+        (app_database.0.extensions | default([]) |
+        difference(item.query_result | map(attribute='extname') | list) |
+        length) == 0
+    fail_msg: >-
+      A requested PostgreSQL extension is missing from one of the application
+      databases.
+    quiet: true
+  loop: "{{ postgresql_app_extension_check.results }}"
+  loop_control:
+    label: "{{ item.app_database.0.name }}:{{ item.app_database.1 }}"
+  when: not ansible_check_mode
+
+- name: Read HBA rules for absent PostgreSQL applications
+  community.postgresql.postgresql_query:
+    login_unix_socket: "{{ postgresql_socket_dir }}"
+    query: >-
+      SELECT count(*) AS rule_count
+      FROM pg_hba_file_rules
+      WHERE %s = ANY(user_name) OR database && %s::text[]
+    positional_args:
+      - "{{ app.user }}"
+      - "{{ app.databases }}"
+  loop: "{{ postgresql_absent_apps_redacted }}"
+  loop_control:
+    loop_var: app
+    label: "{{ app.name }}"
+  become: true
+  become_user: postgres
+  register: postgresql_absent_hba_check
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert absent PostgreSQL applications have no HBA access
+  ansible.builtin.assert:
+    that:
+      - (item.query_result[0].rule_count | int) == 0
+    fail_msg: >-
+      An absent application still has a pg_hba.conf access rule. Re-apply the
+      role to remove access. Existing roles and databases are retained.
+    quiet: true
+  loop: "{{ postgresql_absent_hba_check.results }}"
+  loop_control:
+    label: "{{ item.app.name }}"
+  when: not ansible_check_mode
+
+- name: Read the running PostgreSQL TLS setting
+  community.postgresql.postgresql_query:
+    login_unix_socket: "{{ postgresql_socket_dir }}"
+    query: SHOW ssl
+  become: true
+  become_user: postgres
+  register: postgresql_tls_runtime
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the running PostgreSQL TLS setting
+  ansible.builtin.assert:
+    that:
+      - >-
+        postgresql_tls_runtime.query_result[0].ssl ==
+        ('on' if postgresql_tls_enabled | bool else 'off')
+    fail_msg: The running PostgreSQL TLS setting does not match postgresql_tls_enabled.
     quiet: true
   when: not ansible_check_mode
 

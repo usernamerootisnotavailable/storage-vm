@@ -3,17 +3,10 @@
 local       all       postgres                peer
 local       all       all                     peer
 
-{% if postgresql_tls_enabled | bool %}
-hostssl     all       all       127.0.0.1/32  scram-sha-256
-hostssl     all       all       ::1/128       scram-sha-256
-{% for cidr in postgresql_allowed_cidrs %}
-hostssl     all       all       {{ cidr }}    scram-sha-256
+{% for app in postgresql_apps if app.state == 'present' %}
+{% for database in app.databases %}
+{% for cidr in app.cidrs %}
+{{ 'hostssl' if postgresql_tls_enabled | bool else 'host' }}     {{ database }}  {{ app.user }}  {{ cidr }}  scram-sha-256
 {% endfor %}
-{% else %}
-host        all       all       127.0.0.1/32  scram-sha-256
-host        all       all       ::1/128       scram-sha-256
-{% endif %}
-
-{% for entry in postgresql_extra_hba_entries %}
-{{ entry }}
+{% endfor %}
 {% endfor %}

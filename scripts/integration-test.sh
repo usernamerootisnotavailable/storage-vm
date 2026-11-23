@@ -13,7 +13,7 @@ generate_secrets() {
   umask 077
   {
     echo "---"
-    printf 'postgresql_app_password: "%s"\n' "$(openssl rand -hex 32)"
+    printf 'secret_postgresql_app_password: "%s"\n' "$(openssl rand -hex 32)"
     printf 'mariadb_app_password: "%s"\n' "$(openssl rand -hex 32)"
     printf 'garage_rpc_secret: "%s"\n' "$(openssl rand -hex 32)"
     printf 'garage_admin_token: "%s"\n' "$(openssl rand -hex 32)"
@@ -23,7 +23,9 @@ generate_secrets() {
   } > "${secret_file}"
 }
 
-if [[ ! -f "${secret_file}" ]] || ! grep -q '^mariadb_app_password:' "${secret_file}"; then
+if [[ ! -f "${secret_file}" ]] ||
+  ! grep -q '^mariadb_app_password:' "${secret_file}" ||
+  ! grep -q '^secret_postgresql_app_password:' "${secret_file}"; then
   generate_secrets
 fi
 chmod 0600 "${secret_file}"
@@ -52,6 +54,12 @@ echo "Verifying the host"
 "${ansible_playbook}" \
   -i inventories/dev/hosts.yml \
   playbooks/verify.yml \
+  --extra-vars "@${secret_file}"
+
+echo "Proving PostgreSQL application logins over TLS"
+"${ansible_playbook}" \
+  -i inventories/dev/hosts.yml \
+  playbooks/integration-database.yml \
   --extra-vars "@${secret_file}"
 
 echo "Testing Elasticsearch snapshot create/delete with the shared S3 key"

@@ -4,6 +4,11 @@
     name: "{{ postgresql_service_name }}"
     state: restarted
 
+- name: Reload postgresql
+  ansible.builtin.systemd_service:
+    name: "{{ postgresql_service_name }}"
+    state: reloaded
+
 - name: Restart the PostgreSQL backup timer
   ansible.builtin.systemd_service:
     name: "{{ postgresql_backup_timer_name }}"

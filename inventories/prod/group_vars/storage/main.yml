@@ -1,5 +1,17 @@
 ---
-postgresql_app_password: "{{ secret_postgresql_app_password | mandatory }}"
+postgresql_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_postgresql_app_password | mandatory }}"
+    databases:
+      - appdb
+    # REQUIRED: replace with the Kubernetes egress CIDR that reaches storage01.
+    cidrs:
+      - 10.20.0.0/16
+    extensions: []
+    connection_limit: 100
+    rotate_password: false
 
 # Use a CA-issued certificate in production. The role validates that the
 # provided files exist and that the key is owned by postgres:postgres.
@@ -11,10 +23,8 @@ postgresql_backup_enabled: true
 # Backups must be copied to an off-host target. Local backups on the same host
 # are not disaster recovery.
 
-# When clients run on other hosts, set the listener and allowed CIDRs together:
-# postgresql_listen_addresses: "0.0.0.0"
-# postgresql_allowed_cidrs:
-#   - 10.20.0.0/16
+# Non-loopback app CIDRs require a reachable listener address:
+# postgresql_listen_addresses: "10.20.0.5"
 
 mariadb_app_password: "{{ secret_mariadb_app_password | mandatory }}"
 mariadb_tls_mode: provided

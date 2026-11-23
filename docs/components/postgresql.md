@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `postgresql` role installs PostgreSQL 18 from the PGDG EL10 repository, initializes a single cluster, configures TLS and SCRAM authentication, creates one application user and database, optionally installs a daily backup timer, and verifies an authenticated TLS connection.
+The `postgresql` role installs PostgreSQL 18 from the PGDG EL10 repository, initializes a single cluster, configures TLS and SCRAM authentication, creates multiple external application roles, databases, and extensions, optionally installs a daily backup timer, and verifies the resulting access configuration. Application deployments own migrations and are verified by their own deployment pipelines.
 
 ## Tested platform
 
@@ -29,9 +29,9 @@ The `postgresql` role installs PostgreSQL 18 from the PGDG EL10 repository, init
 |---|---|---|
 | `postgresql_version` | required | Pinned major version from inventory `versions.yml` |
 | `postgresql_port` | `5432` | Listener port |
-| `postgresql_listen_addresses` | `"127.0.0.1"` | Listener addresses; must be reachable when external CIDRs are allowed |
-| `postgresql_allowed_cidrs` | `[]` | Client CIDRs allowed through firewalld |
-| `postgresql_manage_firewall` | `common_firewall_enabled` | Add firewall rules when CIDRs are configured |
+| `postgresql_listen_addresses` | `"127.0.0.1"` | Listener addresses; must be reachable when non-loopback app CIDRs exist |
+| `postgresql_apps` | `[]` | External applications; each entry is defined below |
+| `postgresql_manage_firewall` | `common_firewall_enabled` | Add firewall rules for the union of present app CIDRs |
 | `postgresql_max_connections` | `100` | Maximum connections |
 | `postgresql_shared_buffers` | `"256MB"` | Shared buffer size |
 | `postgresql_effective_cache_size` | `"768MB"` | Planner cache estimate |
@@ -39,10 +39,6 @@ The `postgresql` role installs PostgreSQL 18 from the PGDG EL10 repository, init
 | `postgresql_work_mem` | `"4MB"` | Per-operation memory |
 | `postgresql_wal_level` | `"replica"` | WAL level |
 | `postgresql_password_encryption` | `"scram-sha-256"` | Password hashing |
-| `postgresql_app_user` | `"app"` | Application role |
-| `postgresql_app_database` | `"appdb"` | Application database |
-| `postgresql_app_password` | required | Application password from SOPS |
-| `postgresql_rotate_passwords` | `false` | Allow password changes on an existing role |
 | `postgresql_tls_enabled` | `true` | Enable TLS |
 | `postgresql_tls_mode` | `"generated"` | `generated` self-signed or `provided` |
 | `postgresql_tls_common_name` | `inventory_hostname` | Generated certificate CN |
@@ -51,17 +47,38 @@ The `postgresql` role installs PostgreSQL 18 from the PGDG EL10 repository, init
 | `postgresql_backup_dir` | `/var/backups/postgresql` | Local backup directory |
 | `postgresql_backup_retention_days` | `7` | Local retention |
 | `postgresql_backup_on_calendar` | `*-*-* 02:15:00` | systemd timer schedule |
-| `postgresql_extra_hba_entries` | `[]` | Additional raw `pg_hba.conf` lines |
+
+Each `postgresql_apps` entry has:
+
+| Field | Default | Description |
+|---|---|---|
+| `state` | required | `present` or `absent` |
+| `name` | required | Unique lowercase application name |
+| `user` | required | Unique lowercase PostgreSQL role |
+| `password` | required | SOPS-sourced password of at least 16 characters |
+| `databases` | required | Non-empty list of globally unique lowercase database names |
+| `cidrs` | required | Non-empty list of source CIDRs; `0.0.0.0/0` and `::/0` are forbidden |
+| `extensions` | `[]` | Extensions created in every database for the app |
+| `connection_limit` | `-1` | Role connection limit, at least `-1` |
+| `rotate_password` | `false` | Allow updating an existing role password |
 
 The full interface is validated by `roles/postgresql/meta/argument_specs.yml`.
+Role tasks validate state values, identifiers, uniqueness, CIDR syntax,
+password length, extension names, and connection limits.
 
 ## Authentication
 
-- Local Unix-socket connections use peer authentication.
+- Local Unix-socket connections use peer authentication, including the
+  `postgres` administrator.
 - TCP connections use SCRAM-SHA-256.
-- TLS is enabled by default. `pg_hba.conf` uses `hostssl` entries when TLS is enabled.
-- The application user owns the application database.
+- TLS is enabled by default. `pg_hba.conf` uses `hostssl` entries per present
+  app database, user, and CIDR when TLS is enabled, and `host` entries only for
+  loopback apps when TLS is disabled.
+- Broad `hostssl all all` rules are not rendered.
+- Each application role owns its databases.
 - Administrative Ansible modules run as the `postgres` OS user over the local socket.
+- The role does not connect as application users; app deployments verify their
+  own connectivity.
 
 The `postgres` superuser does not receive a password. Administrative access is through peer authentication on the host.
 
@@ -90,6 +107,11 @@ postgresql_tls_key_path: /var/lib/pgsql/18/data/tls/server.key
 
 The role verifies that both files exist, are owned by `postgres:postgres`, and that the key is mode `0600` or `0640`. Certificate provisioning and SELinux labeling are the operator's responsibility when the files live outside the default data directory. Do not store private keys in inventory or SOPS if they can be issued on the host or delivered by a certificate management system.
 
+Any present app with a non-loopback CIDR requires TLS. The certificate SANs
+must cover the hostname or IP address the apps use, and application deployments
+must trust the issuing CA. Generated self-signed certificates are appropriate
+only for development and loopback integration checks.
+
 ## Backups
 
 When `postgresql_backup_enabled` is true, the role installs:
@@ -116,22 +138,57 @@ Test the restore procedure before relying on it.
 
 The role verifies:
 
-- `pg_isready` succeeds
-- The service is active and enabled
-- The application database exists and is owned by the application user
-- The application user can authenticate over TCP
-- The session uses TLS when TLS is enabled
+- The service is running and `pg_isready` succeeds
+- `pg_hba_file_rules` reports no parse errors or broad host rules
+- Each present app role exists with `LOGIN`, without `SUPERUSER`, `CREATEDB`, or
+  `CREATEROLE`, and with the expected connection limit
+- Each present app database exists and is owned by its app user
+- Requested extensions exist in each present app database
+- Absent apps have no rendered HBA access rule; retained data does not fail
+- The running `ssl` setting matches `postgresql_tls_enabled`, and TLS files have
+  safe permissions
 - Configuration files pass `postgres -C` validation
+- The backup timer is enabled
+
+The role does not authenticate as app users. The integration playbook proves
+development app logins over `127.0.0.1` with TLS.
 
 ## Firewall and SELinux
 
-- No port is opened unless `postgresql_allowed_cidrs` is non-empty.
-- Allowed CIDRs receive firewalld rich rules for the configured port.
+- No port is opened unless the union of present app CIDRs is non-empty.
+- Present app CIDRs receive firewalld rich rules for the configured port.
+- CIDRs used only by absent apps have their PostgreSQL rich rules removed.
+- Non-loopback app CIDRs require a reachable listener and TLS.
 - When the port is not 5432, SELinux gets a `postgresql_port_t` label.
 - The data directory receives `postgresql_db_t`, and the log directory receives `postgresql_log_t`.
 - SELinux tasks are skipped only when `getenforce` reports `Disabled`.
 
 Docker tests cannot verify these controls. A real AlmaLinux 10 host check is required for firewall or SELinux changes.
+
+## Adding a PostgreSQL app
+
+1. Add one `postgresql_apps` entry with an explicit `state`, unique lowercase
+   `name` and `user`, and globally unique `databases`.
+2. Store the password in SOPS under a distinct key. The baseline key is
+   `secret_postgresql_app_password`; additional apps use
+   `secret_postgresql_<name>_password`. Map it into the entry's `password`
+   and never reuse a password.
+3. Set `cidrs` to the exact Kubernetes egress or private source networks. Do
+   not use `0.0.0.0/0` or `::/0`. Any non-loopback CIDR requires TLS, a
+   reachable `postgresql_listen_addresses`, and clients that trust the
+   certificate CA.
+4. Set `postgresql_listen_addresses` and the app CIDRs together. Firewall rules
+   are derived from the union of present app CIDRs; do not add ad hoc port
+   openings.
+5. Do not add raw HBA lines. `pg_hba.conf` is generated from present apps plus
+   local peer administration only.
+6. Databases are created empty and owned by the app user. The app deployment
+   owns schema migrations, runtime grants, and connectivity verification.
+7. To remove access, set `state: absent` and apply the role. This removes HBA
+   and firewall exposure without dropping the role or databases. Data removal
+   is a separate manual operation with a backup and rollback plan.
+8. To rotate a password, update SOPS, set `rotate_password: true` on that app
+   only, apply the role, verify the app, then return the flag to `false`.
 
 ## Upgrade
 
@@ -151,7 +208,7 @@ For a major upgrade, use `pg_upgrade` in a separate, documented change. Do not c
 |---|---|
 | Service fails to start | `journalctl -u postgresql-18`, `postgres -C` config validation |
 | `psql` peer authentication fails | Run as the `postgres` OS user; check `pg_hba.conf` local rules |
-| Application cannot connect | `postgresql_listen_addresses`, `postgresql_allowed_cidrs`, firewalld rich rules |
+| Application cannot connect | `postgresql_apps` CIDRs, `postgresql_listen_addresses`, TLS mode, firewalld rich rules |
 | TLS handshake fails | Certificate paths, key permissions, SANs, `ssl = on` |
 | SELinux denial | `ausearch -m avc -ts recent`, file contexts, port label |
 | Backup timer does not run | `systemctl list-timers`, `journalctl -u postgresql-backup` |

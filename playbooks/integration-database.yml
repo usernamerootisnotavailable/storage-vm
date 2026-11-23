@@ -1,0 +1,73 @@
+---
+- name: Prove PostgreSQL application logins over TLS
+  hosts: storage
+  become: true
+  gather_facts: true
+  any_errors_fatal: true
+  tasks:
+    - name: Apply PostgreSQL defaults to the standalone integration play
+      ansible.builtin.set_fact:
+        postgresql_apps: "{{ postgresql_apps | default([], true) }}"
+        postgresql_port: "{{ postgresql_port | default(5432, true) }}"
+        postgresql_tls_enabled: "{{ postgresql_tls_enabled | default(true, true) }}"
+        postgresql_tls_ca_path: >-
+          {{ postgresql_tls_ca_path | default('/var/lib/pgsql/18/data/tls/ca.crt', true) }}
+      no_log: true
+
+    - name: Require a present application for the login proof
+      ansible.builtin.assert:
+        that:
+          - >-
+            postgresql_apps | selectattr('state', 'defined')
+            | selectattr('state', 'equalto', 'present') | list | length > 0
+        fail_msg: Define at least one present postgresql_apps entry.
+        quiet: true
+
+    - name: Require TLS for the PostgreSQL application login proof
+      ansible.builtin.assert:
+        that:
+          - postgresql_tls_enabled | bool
+        fail_msg: The integration login proof requires TLS.
+        quiet: true
+
+    - name: Log in as each present application over TLS
+      community.postgresql.postgresql_query:
+        login_host: 127.0.0.1
+        login_port: "{{ postgresql_port }}"
+        login_user: "{{ app_database.0.user }}"
+        login_password: "{{ app_database.0.password }}"
+        login_db: "{{ app_database.1 }}"
+        ca_cert: "{{ postgresql_tls_ca_path }}"
+        ssl_mode: verify-full
+        query: >-
+          SELECT current_database() AS database,
+                 current_user AS username,
+                 ssl
+          FROM pg_stat_ssl
+          WHERE pid = pg_backend_pid()
+      loop: >-
+        {{ postgresql_apps | selectattr('state', 'defined')
+           | selectattr('state', 'equalto', 'present')
+           | subelements('databases') }}
+      loop_control:
+        loop_var: app_database
+        label: "{{ app_database.0.name }}:{{ app_database.1 }}"
+      register: postgresql_app_login
+      changed_when: false
+      no_log: true
+
+    - name: Assert the application database, user, and TLS usage
+      ansible.builtin.assert:
+        that:
+          - (item.query_result | length) == 1
+          - item.query_result[0].database == item.app_database.1
+          - item.query_result[0].username == item.app_database.0.user
+          - item.query_result[0].ssl | bool
+        fail_msg: >-
+          An application login did not use the expected database, role, and
+          TLS session.
+        quiet: true
+      loop: "{{ postgresql_app_login.results }}"
+      loop_control:
+        label: "{{ item.app_database.0.name }}:{{ item.app_database.1 }}"
+      no_log: true

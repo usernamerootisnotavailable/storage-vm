@@ -15,7 +15,7 @@
     owner: postgres
     group: postgres
     mode: "0600"
-  notify: Restart postgresql
+  notify: Reload postgresql
 
 - name: Validate the PostgreSQL configuration
   ansible.builtin.command:

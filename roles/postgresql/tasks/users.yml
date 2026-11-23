@@ -1,25 +1,40 @@
 ---
-- name: Create the application role and database
+- name: Create PostgreSQL application access
   when: not ansible_check_mode
   block:
-    - name: Create the application role
+    - name: Create PostgreSQL application roles
       community.postgresql.postgresql_user:
-        name: "{{ postgresql_app_user }}"
-        password: "{{ postgresql_app_password }}"
-        role_attr_flags: LOGIN
-        no_password_changes: "{{ not (postgresql_rotate_passwords | bool) }}"
+        name: "{{ item.user }}"
+        password: "{{ item.password }}"
+        role_attr_flags: "LOGIN,NOSUPERUSER,NOCREATEDB,NOCREATEROLE"
+        conn_limit: "{{ item.connection_limit | default(-1) }}"
+        no_password_changes: "{{ not (item.rotate_password | default(false) | bool) }}"
         login_unix_socket: "{{ postgresql_socket_dir }}"
         state: present
+      loop: "{{ postgresql_present_apps }}"
+      loop_control:
+        label: "{{ item.name }}"
       become: true
       become_user: postgres
       no_log: true
 
-    - name: Create the application database
+    - name: Create PostgreSQL application databases
       community.postgresql.postgresql_db:
-        name: "{{ postgresql_app_database }}"
-        owner: "{{ postgresql_app_user }}"
+        name: "{{ item.1 }}"
+        owner: "{{ item.0.user }}"
         encoding: UTF8
         login_unix_socket: "{{ postgresql_socket_dir }}"
         state: present
+      loop: "{{ postgresql_present_apps_redacted | subelements('databases') }}"
+      loop_control:
+        label: "{{ item.0.name }}:{{ item.1 }}"
       become: true
       become_user: postgres
+
+    - name: Create requested PostgreSQL extensions
+      ansible.builtin.include_tasks: extensions.yml
+      loop: "{{ postgresql_present_apps_redacted }}"
+      loop_control:
+        loop_var: postgresql_app
+        label: "{{ postgresql_app.name }}"
+      when: postgresql_app.extensions | default([]) | length > 0

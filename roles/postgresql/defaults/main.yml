@@ -2,7 +2,6 @@
 # postgresql_version is required and pinned in inventory versions.yml.
 postgresql_port: 5432
 postgresql_listen_addresses: "127.0.0.1"
-postgresql_allowed_cidrs: []
 postgresql_manage_firewall: "{{ common_firewall_enabled | default(true) }}"
 postgresql_firewall_zone: "{{ common_firewall_zone | default('public') }}"
 
@@ -29,9 +28,37 @@ postgresql_bin_dir: "/usr/pgsql-{{ postgresql_version }}/bin"
 postgresql_service_name: "postgresql-{{ postgresql_version }}"
 postgresql_socket_dir: "/run/postgresql"
 
-postgresql_app_user: app
-postgresql_app_database: appdb
-postgresql_rotate_passwords: false
+# Each app is an external client. The storage host owns roles, databases,
+# grants, HBA rules, and firewall exposure; app deployments own migrations.
+postgresql_apps: []
+
+# Derived values. Do not set these in inventory.
+postgresql_present_apps: >-
+  {{ postgresql_apps | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'present') | list }}
+postgresql_absent_apps: >-
+  {{ postgresql_apps | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'absent') | list }}
+postgresql_app_cidrs: >-
+  {{ postgresql_present_apps | map(attribute='cidrs') | flatten | unique | sort }}
+postgresql_absent_app_cidrs: >-
+  {{ postgresql_absent_apps | map(attribute='cidrs') | flatten | unique | sort }}
+postgresql_absent_only_app_cidrs: >-
+  {{ postgresql_absent_app_cidrs | difference(postgresql_app_cidrs) }}
+postgresql_non_loopback_app_cidrs: >-
+  {{ postgresql_app_cidrs | reject('match', '^127\.')
+     | reject('equalto', '::1/128') | list }}
+
+# Redacted copies keep app passwords out of loop failure output for tasks that
+# do not need the credential.
+postgresql_apps_redacted: >-
+  {{ postgresql_apps | map('combine', {'password': 'redacted'}) | list }}
+postgresql_present_apps_redacted: >-
+  {{ postgresql_apps_redacted | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'present') | list }}
+postgresql_absent_apps_redacted: >-
+  {{ postgresql_apps_redacted | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'absent') | list }}
 
 postgresql_max_connections: 100
 postgresql_shared_buffers: "256MB"
@@ -42,7 +69,6 @@ postgresql_wal_level: replica
 postgresql_password_encryption: scram-sha-256
 postgresql_log_min_duration_statement: 1000
 postgresql_timezone: UTC
-postgresql_extra_hba_entries: []
 
 postgresql_tls_enabled: true
 postgresql_tls_mode: generated

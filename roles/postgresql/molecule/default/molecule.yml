@@ -29,9 +29,32 @@ provisioner:
         common_ssh_allow_users:
           - ansible
         postgresql_manage_firewall: false
-        postgresql_allowed_cidrs: []
-        postgresql_app_password: >-
-          {{ lookup('password', '/tmp/storage-host-molecule-postgresql length=32 chars=ascii_letters,digits') }}
+        postgresql_apps:
+          - state: present
+            name: app
+            user: app
+            password: >-
+              {{ lookup('password', '/tmp/mol-pg-app length=32 chars=ascii_letters,digits') }}
+            databases:
+              - appdb
+            cidrs:
+              - 127.0.0.1/32
+              - ::1/128
+            extensions: []
+            connection_limit: 100
+            rotate_password: false
+          - state: present
+            name: analytics
+            user: analytics
+            password: >-
+              {{ lookup('password', '/tmp/mol-pg-analytics length=32 chars=ascii_letters,digits') }}
+            databases:
+              - analyticsdb
+            cidrs:
+              - 127.0.0.1/32
+            extensions: []
+            connection_limit: 20
+            rotate_password: false
         postgresql_tls_mode: generated
         postgresql_backup_enabled: true
         postgresql_backup_dir: /var/backups/postgresql

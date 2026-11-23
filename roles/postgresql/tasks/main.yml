@@ -17,7 +17,7 @@
 - name: Start PostgreSQL
   ansible.builtin.import_tasks: service.yml
 
-- name: Create the application role and database
+- name: Create application access
   ansible.builtin.import_tasks: users.yml
 
 - name: Configure the firewall

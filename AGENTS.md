@@ -32,7 +32,7 @@ If a rule is unclear, stop and ask. Do not invent a new convention silently.
 
 - Roles and playbooks must not branch on environment name, hostname, IP address, domain, or inventory path.
 - `deployment_environment` is metadata only. It must not appear in a `when:`, template conditional, or path.
-- Use capability or sizing variables instead of environment names. For example, use `postgresql_allowed_cidrs`, not `if environment == "prod"`.
+- Use capability or sizing variables instead of environment names. For example, use `postgresql_apps` CIDRs, not `if environment == "prod"`.
 - Use the same variable names, group names, logical hostnames, paths, and task order in every environment.
 - Do not use `extra_vars` for normal configuration. It is allowed only for ephemeral test secrets and documented emergency overrides.
 - Do not read environment-specific files from inside a role.
@@ -97,8 +97,8 @@ version: "*"
 
 # Secret exposure
 debug:
-  var: postgresql_app_password
-command: psql "postgresql://app:{{ postgresql_app_password }}@..."
+  var: postgresql_apps
+command: psql "postgresql://app:{{ postgresql_apps[0].password }}@..."
 no_log: false
 
 # Hidden failures

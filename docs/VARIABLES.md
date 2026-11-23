@@ -95,8 +95,15 @@ Allowed:
 postgresql_shared_buffers: "8GB"
 
 # Different exposure through the same variable
-postgresql_allowed_cidrs:
-  - 10.20.0.0/16
+postgresql_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_postgresql_app_password }}"
+    databases:
+      - appdb
+    cidrs:
+      - 10.20.0.0/16
 ```
 
 Capability flags for the test harness are explicit and named for the capability, not the environment:
@@ -119,10 +126,18 @@ argument_specs:
   main:
     short_description: Configure PostgreSQL 18
     options:
-      postgresql_app_password:
-        type: str
-        required: true
-        no_log: true
+      postgresql_apps:
+        type: list
+        elements: dict
+        options:
+          password:
+            type: str
+            required: true
+            no_log: true
+          state:
+            type: str
+            required: true
+            choices: [present, absent]
       postgresql_tls_mode:
         type: str
         choices: [generated, provided]
@@ -135,8 +150,13 @@ Use `ansible.builtin.assert` for invariants that argument specs cannot express:
 - name: Validate external access configuration
   ansible.builtin.assert:
     that:
-      - postgresql_allowed_cidrs | length == 0 or postgresql_listen_addresses not in ['127.0.0.1', 'localhost']
-    fail_msg: Set postgresql_listen_addresses to a reachable address when external clients are allowed.
+      - >-
+        postgresql_apps | selectattr('state', 'equalto', 'present')
+        | map(attribute='cidrs') | flatten | length == 0 or
+        postgresql_listen_addresses not in ['127.0.0.1', 'localhost']
+    fail_msg: >-
+      Set postgresql_listen_addresses to a reachable address when external
+      applications are defined.
 ```
 
 Assertions must explain the fix, not just state that a value is invalid.
@@ -177,7 +197,15 @@ Secret values are named `secret_*` inside `secrets.sops.yml` and mapped to norma
 secret_postgresql_app_password: "..."
 
 # main.yml
-postgresql_app_password: "{{ secret_postgresql_app_password }}"
+postgresql_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_postgresql_app_password }}"
+    databases:
+      - appdb
+    cidrs:
+      - 127.0.0.1/32
 ```
 
 Do not use `secret_*` names in roles. Roles consume the mapped variable, which keeps the role independent of the secret backend.

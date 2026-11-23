@@ -1,5 +1,16 @@
 ---
-postgresql_app_password: "{{ secret_postgresql_app_password | mandatory }}"
+postgresql_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_postgresql_app_password | mandatory }}"
+    databases:
+      - appdb
+    cidrs:
+      - 127.0.0.1/32
+    extensions: []
+    connection_limit: 100
+    rotate_password: false
 postgresql_backup_enabled: false
 
 mariadb_app_password: "{{ secret_mariadb_app_password | mandatory }}"

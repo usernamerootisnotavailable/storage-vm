@@ -1,8 +1,10 @@
 ---
-- name: Allow PostgreSQL from approved source CIDRs
+- name: Manage PostgreSQL firewall access
   when:
     - postgresql_manage_firewall | bool
-    - postgresql_allowed_cidrs | length > 0
+    - >-
+      postgresql_app_cidrs | length > 0 or
+      postgresql_absent_only_app_cidrs | length > 0
   block:
     - name: Ensure firewalld is running
       ansible.builtin.systemd_service:
@@ -10,7 +12,7 @@
         enabled: true
         state: started
 
-    - name: Add PostgreSQL firewall rules
+    - name: Add PostgreSQL firewall rules for present applications
       ansible.posix.firewalld:
         rich_rule: >-
           rule family="{{ 'ipv6' if ':' in item else 'ipv4' }}"
@@ -20,6 +22,20 @@
         permanent: true
         immediate: true
         state: enabled
-      loop: "{{ postgresql_allowed_cidrs }}"
+      loop: "{{ postgresql_app_cidrs }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Remove PostgreSQL firewall rules for absent applications
+      ansible.posix.firewalld:
+        rich_rule: >-
+          rule family="{{ 'ipv6' if ':' in item else 'ipv4' }}"
+          source address="{{ item }}"
+          port protocol="tcp" port="{{ postgresql_port }}" accept
+        zone: "{{ postgresql_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: disabled
+      loop: "{{ postgresql_absent_only_app_cidrs }}"
       loop_control:
         label: "{{ item }}"
