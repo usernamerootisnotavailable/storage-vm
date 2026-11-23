@@ -111,12 +111,15 @@
 - name: Read PostgreSQL application database owners
   community.postgresql.postgresql_query:
     login_unix_socket: "{{ postgresql_socket_dir }}"
+    # postgresql_query stringifies list arguments with single quotes, which
+    # PostgreSQL array parsing treats as literal characters. Split a joined
+    # string in SQL instead.
     query: >-
       SELECT datname, pg_get_userbyid(datdba) AS owner
       FROM pg_database
-      WHERE datname = ANY(%s)
+      WHERE datname::text = ANY(string_to_array(%s, ','))
     positional_args:
-      - "{{ app.databases }}"
+      - "{{ app.databases | join(',') }}"
   loop: "{{ postgresql_present_apps_redacted }}"
   loop_control:
     loop_var: app
@@ -182,13 +185,15 @@
 - name: Read HBA rules for absent PostgreSQL applications
   community.postgresql.postgresql_query:
     login_unix_socket: "{{ postgresql_socket_dir }}"
+    # Use the same joined-string handling as the database ownership query.
     query: >-
       SELECT count(*) AS rule_count
       FROM pg_hba_file_rules
-      WHERE %s = ANY(user_name) OR database && %s::text[]
+      WHERE %s = ANY(user_name)
+         OR database && string_to_array(%s, ',')
     positional_args:
       - "{{ app.user }}"
-      - "{{ app.databases }}"
+      - "{{ app.databases | join(',') }}"
   loop: "{{ postgresql_absent_apps_redacted }}"
   loop_control:
     loop_var: app
