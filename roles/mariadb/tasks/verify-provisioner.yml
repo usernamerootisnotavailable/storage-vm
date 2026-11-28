@@ -1,0 +1,115 @@
+---
+- name: Read MariaDB provisioner global privileges
+  ansible.mariadb.mariadb_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    query: >-
+      SELECT Create_priv, Create_user_priv, Grant_priv, Super_priv,
+             File_priv, Process_priv, Shutdown_priv, Reload_priv, Drop_priv,
+             ssl_type
+      FROM mysql.user
+      WHERE User = %s AND Host = %s
+    positional_args:
+      - "{{ mariadb_provisioner.user }}"
+      - "{{ mariadb_provisioner_host }}"
+  loop: "{{ mariadb_provisioner.cidrs | map('mariadb_host_from_cidr') | unique | sort }}"
+  loop_control:
+    loop_var: mariadb_provisioner_host
+    label: "{{ mariadb_provisioner.name }}@{{ mariadb_provisioner_host }}"
+  register: mariadb_provisioner_global_check
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert MariaDB provisioner accounts exist
+  ansible.builtin.assert:
+    that:
+      - (item.query_result[0] | length) == 1
+    fail_msg: >-
+      A present MariaDB provisioner account is missing for one of its derived
+      hosts.
+    quiet: true
+  loop: "{{ mariadb_provisioner_global_check.results }}"
+  loop_control:
+    label: "{{ mariadb_provisioner.name }}@{{ item.mariadb_provisioner_host }}"
+  when: not ansible_check_mode
+
+- name: Assert MariaDB provisioner global privileges
+  ansible.builtin.assert:
+    that:
+      - item.query_result[0][0].Create_priv == 'Y'
+      - item.query_result[0][0].Create_user_priv == 'Y'
+      - item.query_result[0][0].Grant_priv == 'N'
+      - item.query_result[0][0].Super_priv == 'N'
+      - item.query_result[0][0].File_priv == 'N'
+      - item.query_result[0][0].Process_priv == 'N'
+      - item.query_result[0][0].Shutdown_priv == 'N'
+      - item.query_result[0][0].Reload_priv == 'N'
+      - item.query_result[0][0].Drop_priv == 'N'
+      - item.query_result[0][0].ssl_type in ['ANY', 'X509', 'SPECIFIED']
+    fail_msg: >-
+      A present MariaDB provisioner has privileges beyond global CREATE and
+      CREATE USER with a prefix-scoped ALL/GRANT rule and SSL.
+    quiet: true
+  loop: "{{ mariadb_provisioner_global_check.results }}"
+  loop_control:
+    label: "{{ mariadb_provisioner.name }}@{{ item.mariadb_provisioner_host }}"
+  when:
+    - not ansible_check_mode
+    - item.query_result[0] | length == 1
+
+- name: Read MariaDB provisioner prefix grants
+  ansible.mariadb.mariadb_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    query: >-
+      SELECT Grant_priv, Select_priv, Insert_priv, Update_priv, Delete_priv,
+             Create_priv, Drop_priv, Alter_priv, Index_priv
+      FROM mysql.db
+      WHERE User = %s AND Host = %s AND Db = %s
+    positional_args:
+      - "{{ mariadb_provisioner.user }}"
+      - "{{ mariadb_provisioner_host }}"
+      - "{{ mariadb_provisioner.database_prefix }}%"
+  loop: "{{ mariadb_provisioner.cidrs | map('mariadb_host_from_cidr') | unique | sort }}"
+  loop_control:
+    loop_var: mariadb_provisioner_host
+    label: "{{ mariadb_provisioner.name }}@{{ mariadb_provisioner_host }}"
+  register: mariadb_provisioner_prefix_check
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert MariaDB provisioner prefix grants exist
+  ansible.builtin.assert:
+    that:
+      - (item.query_result[0] | length) == 1
+    fail_msg: >-
+      A present MariaDB provisioner is missing the prefix-scoped grant row for
+      one of its derived hosts.
+    quiet: true
+  loop: "{{ mariadb_provisioner_prefix_check.results }}"
+  loop_control:
+    label: "{{ mariadb_provisioner.name }}@{{ item.mariadb_provisioner_host }}"
+  when: not ansible_check_mode
+
+- name: Assert MariaDB provisioner prefix grant privileges
+  ansible.builtin.assert:
+    that:
+      - item.query_result[0][0].Grant_priv == 'Y'
+      - item.query_result[0][0].Select_priv == 'Y'
+      - item.query_result[0][0].Insert_priv == 'Y'
+      - item.query_result[0][0].Update_priv == 'Y'
+      - item.query_result[0][0].Delete_priv == 'Y'
+      - item.query_result[0][0].Create_priv == 'Y'
+      - item.query_result[0][0].Drop_priv == 'Y'
+      - item.query_result[0][0].Alter_priv == 'Y'
+      - item.query_result[0][0].Index_priv == 'Y'
+    fail_msg: >-
+      A present MariaDB provisioner does not have the prefix-scoped ALL/GRANT
+      rule for its database prefix.
+    quiet: true
+  loop: "{{ mariadb_provisioner_prefix_check.results }}"
+  loop_control:
+    label: "{{ mariadb_provisioner.name }}@{{ item.mariadb_provisioner_host }}"
+  when:
+    - not ansible_check_mode
+    - item.query_result[0] | length == 1

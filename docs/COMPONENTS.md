@@ -144,6 +144,9 @@ that governs these contracts.
   CIDRs.
 - Both roles reject default-route app CIDRs. PostgreSQL requires TLS for
   non-loopback app CIDRs; MariaDB requires TLS for every app account.
+- Optional scoped provisioner accounts let an application create its own roles,
+  databases, and grants without a superuser. See
+  [Application provisioning](APP-PROVISIONING.md).
 
 ## SELinux posture
 

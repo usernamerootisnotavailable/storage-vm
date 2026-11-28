@@ -57,6 +57,16 @@ provisioner:
             connection_limit: 20
             rotate_password: false
         postgresql_tls_mode: generated
+        postgresql_provisioners:
+          - state: present
+            name: provisioner
+            user: provisioner
+            password: >-
+              {{ lookup('password', '/tmp/mol-pg-provisioner length=32 chars=ascii_letters,digits') }}
+            cidrs:
+              - 127.0.0.1/32
+            connection_limit: 10
+            rotate_password: false
         postgresql_backup_enabled: true
         postgresql_backup_dir: /var/backups/postgresql
         postgresql_backup_on_calendar: "*-*-* 03:00:00"

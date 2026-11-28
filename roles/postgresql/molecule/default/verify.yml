@@ -9,6 +9,83 @@
         name: postgresql
         tasks_from: verify
 
+    - name: Exercise the PostgreSQL provisioner
+      when: not ansible_check_mode
+      block:
+        - name: Set the provisioner for the exercise
+          ansible.builtin.set_fact:
+            postgresql_test_provisioner: >-
+              {{ postgresql_provisioners
+                 | selectattr('state', 'defined')
+                 | selectattr('state', 'equalto', 'present')
+                 | list | first }}
+          no_log: true
+
+        - name: Create a throwaway PostgreSQL role as the provisioner
+          community.postgresql.postgresql_user:
+            name: throwaway_user
+            password: >-
+              {{ lookup('password', '/tmp/mol-pg-throwaway length=32 chars=ascii_letters,digits') }}
+            role_attr_flags: "LOGIN,NOSUPERUSER"
+            login_host: 127.0.0.1
+            login_port: "{{ postgresql_port }}"
+            login_user: "{{ postgresql_test_provisioner.user }}"
+            login_password: "{{ postgresql_test_provisioner.password }}"
+            login_db: postgres
+            ssl_mode: require
+            state: present
+          no_log: true
+
+        - name: Create a throwaway PostgreSQL database as the provisioner
+          community.postgresql.postgresql_db:
+            name: throwaway_db
+            login_host: 127.0.0.1
+            login_port: "{{ postgresql_port }}"
+            login_user: "{{ postgresql_test_provisioner.user }}"
+            login_password: "{{ postgresql_test_provisioner.password }}"
+            login_db: postgres
+            ssl_mode: require
+            state: present
+          no_log: true
+
+        - name: Verify the throwaway objects
+          community.postgresql.postgresql_query:
+            login_unix_socket: "{{ postgresql_socket_dir }}"
+            query: >-
+              SELECT
+                EXISTS(SELECT 1 FROM pg_database WHERE datname = 'throwaway_db')
+                  AS db_exists,
+                EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'throwaway_user')
+                  AS user_exists
+          become: true
+          become_user: postgres
+          register: postgresql_throwaway_check
+          changed_when: false
+
+        - name: Assert the provisioner created the throwaway objects
+          ansible.builtin.assert:
+            that:
+              - postgresql_throwaway_check.query_result[0].db_exists | bool
+              - postgresql_throwaway_check.query_result[0].user_exists | bool
+            fail_msg: The PostgreSQL provisioner could not create a database and role.
+            quiet: true
+      always:
+        - name: Drop the throwaway PostgreSQL database
+          community.postgresql.postgresql_db:
+            name: throwaway_db
+            state: absent
+            login_unix_socket: "{{ postgresql_socket_dir }}"
+          become: true
+          become_user: postgres
+
+        - name: Drop the throwaway PostgreSQL role
+          community.postgresql.postgresql_user:
+            name: throwaway_user
+            state: absent
+            login_unix_socket: "{{ postgresql_socket_dir }}"
+          become: true
+          become_user: postgres
+
     - name: Run the PostgreSQL backup service
       ansible.builtin.systemd_service:
         name: postgresql-backup.service

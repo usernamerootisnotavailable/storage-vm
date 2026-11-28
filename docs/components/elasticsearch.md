@@ -52,6 +52,9 @@ The `elasticsearch` role installs Elasticsearch 9.5.6 as a single-node cluster w
 - The default listener is loopback.
 - External HTTP access requires setting the listener, approved CIDRs, and a certificate with the correct SAN.
 
+Per-application users are created by hand; see
+[Application provisioning](../APP-PROVISIONING.md#elasticsearch-app-credentials).
+
 ### TLS files must live under the configuration directory
 
 Elasticsearch 9's entitlement controls block SSL file reads outside `ES_PATH_CONF`. The role asserts that the CA, certificate, and key all live under `/etc/elasticsearch`. The default certs directory satisfies this.

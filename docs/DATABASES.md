@@ -11,23 +11,27 @@ Read this policy before changing `postgresql_apps` or `mariadb_apps`.
 
 ## Ownership boundary
 
-Database access has one writer: this repository. Application deployments are
-clients, never database administrators.
+Database access has one owner: this repository. Application deployments are
+clients. They may use a scoped provisioner account for their own roles,
+databases, and grants, subject to the reviewed exception below. They are never
+database administrators.
 
 | Area | Storage repository owns | Application deployment owns |
 |---|---|---|
-| Inventory contract | The `postgresql_apps` or `mariadb_apps` entry, including engine, names, databases, CIDRs, and state | Its own deployment configuration and application schema |
-| Identity | Roles, accounts, passwords, database ownership, database grants, and reserved-name enforcement | Schema migrations, object ownership inside its databases, and runtime object grants permitted to its account |
+| Inventory contract | The `postgresql_apps`, `mariadb_apps`, `postgresql_provisioners`, or `mariadb_provisioners` entry, including engine, names, prefixes, databases, CIDRs, and state | Its own deployment configuration and application schema |
+| Identity | Roles, accounts, passwords, database ownership, database grants, provisioner scope, and reserved-name enforcement | Schema migrations, object ownership inside its databases, and runtime object grants permitted to its account |
+| Provisioning | Provisioner account credentials, global privileges, prefix scope, HBA or account hosts, TLS requirements, and firewall exposure | Creating or dropping only its own scoped roles, databases, and grants through the provisioner account |
 | Authentication | `pg_hba.conf`, MariaDB account hosts, TLS requirements, listener addresses, and database firewall rules | Connecting from the declared source network and verifying the server certificate |
-| Secrets | The encrypted database password and its mapping into the app entry | Consuming the matching credential through the application's own secret store |
+| Secrets | The encrypted database password and its mapping into the app or provisioner entry | Consuming the matching credential through the application's own secret store |
 | Verification | Role/account, database, extension, HBA, grant or ownership, and TLS verification as the database administrator | A real connection from the application network, migrations, and application health |
 
 Database-level grants and account privileges belong to the storage repository.
 Application migrations may create objects and the object grants needed by their
-own account inside the application's databases, but they must not create roles or
-accounts, grant access to other accounts, or change database-level access.
+own account inside the application's databases. They must not change the
+provisioner scope, grant access outside the declared database prefix, or change
+database-level access outside the provisioner contract.
 
-Application pipelines must never:
+Application pipelines must never, outside the scoped provisioner exception:
 
 - Receive or use a PostgreSQL superuser, MariaDB `root`, or any other
   administrative credential.
@@ -40,6 +44,41 @@ Application pipelines must never:
 A reviewed manual decommission after `state: absent` is a storage operation, not
 an application pipeline operation. It is covered in
 [Decommissioning data](#decommissioning-data).
+
+### Reviewed provisioner exception
+
+This is the reviewed exception to the former "storage repository is the only
+writer" rule. It exists because application deployments need to create their own
+database identities during bootstrap without receiving a superuser or database
+administrator credential.
+
+PostgreSQL provisioners:
+
+- are declared in `postgresql_provisioners`
+- have exactly `LOGIN`, `CREATEDB`, `CREATEROLE`, and `NOSUPERUSER`
+- may connect only to the `postgres` database over TLS
+- may create roles and databases, but cannot create superusers, change server
+  configuration, or bypass TLS
+- lose HBA and firewall access on `state: absent`; their role and created objects
+  are retained
+
+MariaDB provisioners:
+
+- are declared in `mariadb_provisioners`
+- receive global `CREATE` and `CREATE USER`
+- receive `ALL` with `GRANT OPTION` only on databases matching
+  `<database_prefix>%`
+- do not receive global `ALL`, global `GRANT OPTION`, `SUPER`, `FILE`,
+  `PROCESS`, `SHUTDOWN`, `RELOAD`, or global `DROP`
+- require SSL
+- lose global and prefix grants and firewall access on `state: absent`; the
+  account is retained
+
+The storage repository still owns the provisioner account, its password, its
+scope, its TLS and network exposure, and its verification. Application
+deployments may use only the provisioner credential issued to them. They must
+not grant outside the prefix, create additional provisioners, or modify the
+storage host. See [Application provisioning](APP-PROVISIONING.md).
 
 ## Engine choice
 
@@ -380,12 +419,14 @@ application users; applications are external.
 PostgreSQL verifies:
 
 - Service health and `pg_isready`.
-- Every present role has `LOGIN`, no `SUPERUSER`, `CREATEDB`, or `CREATEROLE`, and
-  the expected connection limit.
+- Every present application role has `LOGIN`, no `SUPERUSER`, `CREATEDB`, or
+  `CREATEROLE`, and the expected connection limit.
+- Every present provisioner role has `LOGIN`, `CREATEDB`, `CREATEROLE`, no
+  `SUPERUSER`, and the expected connection limit.
 - Every present database exists and is owned by its app user.
 - Requested extensions exist in every database for the app.
 - `pg_hba_file_rules` has no parse errors and no broad `all`/`all` host rules.
-- Absent apps have no HBA rule.
+- Absent apps and provisioners have no HBA rule.
 - The running TLS setting and TLS file permissions.
 
 PostgreSQL does not verify application-created schema objects or object grants.
@@ -397,7 +438,10 @@ MariaDB verifies:
 - Every present account exists for every derived host.
 - `mysql.user.ssl_type` requires SSL.
 - Every declared database has a `mysql.db` grant for every derived host.
-- Absent apps have no database grants for their declared databases and hosts.
+- Present provisioners have global `CREATE` and `CREATE USER`, no global
+  `GRANT OPTION` or administrative privileges, and a prefix-scoped `ALL/GRANT`
+  row.
+- Absent apps and provisioners have no database or prefix grants.
 - TLS file permissions.
 
 Neither role proves that an application can connect from its real network, that
@@ -405,12 +449,12 @@ its migrations succeed, or that its own secret store has the right credential.
 
 ### CI integration
 
-`make integration` applies `site.yml` on the development container with ephemeral
-credentials, runs the verification playbook, and then runs
-[`playbooks/integration-database.yml`](../playbooks/integration-database.yml).
-That playbook logs in as each present development PostgreSQL app for each
-database over `127.0.0.1` with TLS and asserts the expected database, user, and
-TLS session. It does the same for each present development MariaDB app with the
+`make integration` applies `site.yml` on the development container with the CI
+inventory and ephemeral credentials, runs the verification playbook, and then
+runs [`playbooks/integration-database.yml`](../playbooks/integration-database.yml).
+That playbook logs in as each present CI PostgreSQL app for each
+database over loopback with TLS and asserts the expected database, user, and
+TLS session. It does the same for each present CI MariaDB app with the
 MariaDB CA, asserting the expected database, account, and a non-empty
 `Ssl_cipher`.
 
@@ -541,9 +585,10 @@ restore verification and any data loss window.
   include or fragment mechanism, and PostgreSQL include directives are not used.
   The storage role is the sole writer of `pg_hba.conf`; manual edits are
   overwritten.
-- **The storage role is the sole database writer.** Application pipelines cannot
-  self-provision roles, databases, database-level grants, listeners, or firewall
-  access.
+- **The storage role owns provisioner accounts and scope.** Application
+  pipelines cannot create additional provisioners, grant outside their database
+  prefix, change listeners, or change firewall access. They may use the scoped
+  provisioner credential described above.
 - **PostgreSQL grants are ownership-based.** The role verifies database ownership
   and role attributes, not per-object grants created by the application.
 - **MariaDB has no per-app connection limit.** Only the global

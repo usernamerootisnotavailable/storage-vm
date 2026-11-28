@@ -82,3 +82,17 @@
       loop_control:
         loop_var: mariadb_absent_app
         label: "{{ mariadb_absent_app.name }}"
+
+    - name: Create MariaDB provisioner accounts
+      ansible.builtin.include_tasks: users-provisioner.yml
+      loop: "{{ mariadb_present_provisioners }}"
+      loop_control:
+        loop_var: mariadb_provisioner
+        label: "{{ mariadb_provisioner.name }}"
+
+    - name: Remove privileges for absent MariaDB provisioners
+      ansible.builtin.include_tasks: revoke-provisioner.yml
+      loop: "{{ mariadb_absent_provisioners_redacted }}"
+      loop_control:
+        loop_var: mariadb_absent_provisioner
+        label: "{{ mariadb_absent_provisioner.name }}"

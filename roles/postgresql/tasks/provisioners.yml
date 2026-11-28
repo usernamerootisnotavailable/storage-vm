@@ -1,0 +1,37 @@
+---
+- name: Create PostgreSQL provisioner access
+  when: not ansible_check_mode
+  block:
+    - name: Create PostgreSQL provisioner roles
+      community.postgresql.postgresql_user:
+        name: "{{ item.user }}"
+        password: "{{ item.password }}"
+        role_attr_flags: "LOGIN,NOSUPERUSER,CREATEDB,CREATEROLE"
+        conn_limit: "{{ item.connection_limit | default(-1) }}"
+        no_password_changes: "{{ not (item.rotate_password | default(false) | bool) }}"
+        login_unix_socket: "{{ postgresql_socket_dir }}"
+        state: present
+      loop: "{{ postgresql_present_provisioners }}"
+      loop_control:
+        label: "{{ item.name }}"
+      become: true
+      become_user: postgres
+      no_log: true
+
+    # community.postgresql skips conn_limit when no_password_changes is true.
+    # Enforce the role flags and limit without passing a password so
+    # rotate_password: false still preserves the existing credential.
+    - name: Enforce PostgreSQL provisioner role attributes and connection limits
+      community.postgresql.postgresql_user:
+        name: "{{ item.user }}"
+        role_attr_flags: "LOGIN,NOSUPERUSER,CREATEDB,CREATEROLE"
+        conn_limit: "{{ item.connection_limit | default(-1) }}"
+        no_password_changes: false
+        login_unix_socket: "{{ postgresql_socket_dir }}"
+        state: present
+      loop: "{{ postgresql_present_provisioners_redacted }}"
+      loop_control:
+        label: "{{ item.name }}"
+      become: true
+      become_user: postgres
+      when: not (item.rotate_password | default(false) | bool)

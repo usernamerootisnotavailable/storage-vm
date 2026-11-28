@@ -1,0 +1,18 @@
+---
+- name: Create MariaDB provisioner accounts for derived hosts
+  ansible.mariadb.mariadb_user:
+    name: "{{ mariadb_provisioner.user }}"
+    host: "{{ mariadb_provisioner_host }}"
+    password: "{{ mariadb_provisioner.password }}"
+    priv: >-
+      *.*:CREATE,CREATE USER/{{ mariadb_provisioner.database_prefix }}%.*:ALL,GRANT
+    tls_requires:
+      SSL: true
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    state: present
+  loop: "{{ mariadb_provisioner.cidrs | map('mariadb_host_from_cidr') | unique | sort }}"
+  loop_control:
+    loop_var: mariadb_provisioner_host
+    label: "{{ mariadb_provisioner.name }}@{{ mariadb_provisioner_host }}"
+  no_log: true

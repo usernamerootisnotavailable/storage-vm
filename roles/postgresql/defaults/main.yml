@@ -32,6 +32,12 @@ postgresql_socket_dir: "/run/postgresql"
 # grants, HBA rules, and firewall exposure; app deployments own migrations.
 postgresql_apps: []
 
+# Optional scoped provisioning roles. A present provisioner receives LOGIN,
+# CREATEDB, and CREATEROLE, but never SUPERUSER. It may connect only to the
+# postgres database over TLS. Absent entries remove HBA and firewall access;
+# the role and any objects it created are retained.
+postgresql_provisioners: []
+
 # Derived values. Do not set these in inventory.
 postgresql_present_apps: >-
   {{ postgresql_apps | selectattr('state', 'defined')
@@ -45,8 +51,27 @@ postgresql_absent_app_cidrs: >-
   {{ postgresql_absent_apps | map(attribute='cidrs') | flatten | unique | sort }}
 postgresql_absent_only_app_cidrs: >-
   {{ postgresql_absent_app_cidrs | difference(postgresql_app_cidrs) }}
-postgresql_non_loopback_app_cidrs: >-
-  {{ postgresql_app_cidrs | reject('match', '^127\.')
+
+postgresql_present_provisioners: >-
+  {{ postgresql_provisioners | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'present') | list }}
+postgresql_absent_provisioners: >-
+  {{ postgresql_provisioners | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'absent') | list }}
+postgresql_provisioner_cidrs: >-
+  {{ postgresql_present_provisioners | map(attribute='cidrs') | flatten | unique | sort }}
+postgresql_absent_provisioner_cidrs: >-
+  {{ postgresql_absent_provisioners | map(attribute='cidrs') | flatten | unique | sort }}
+postgresql_absent_only_provisioner_cidrs: >-
+  {{ postgresql_absent_provisioner_cidrs | difference(postgresql_provisioner_cidrs) }}
+
+postgresql_client_cidrs: >-
+  {{ (postgresql_app_cidrs + postgresql_provisioner_cidrs) | unique | sort }}
+postgresql_absent_only_client_cidrs: >-
+  {{ (postgresql_absent_only_app_cidrs + postgresql_absent_only_provisioner_cidrs)
+     | unique | sort }}
+postgresql_non_loopback_client_cidrs: >-
+  {{ postgresql_client_cidrs | reject('match', '^127\.')
      | reject('equalto', '::1/128') | list }}
 
 # Redacted copies keep app passwords out of loop failure output for tasks that
@@ -58,6 +83,15 @@ postgresql_present_apps_redacted: >-
      | selectattr('state', 'equalto', 'present') | list }}
 postgresql_absent_apps_redacted: >-
   {{ postgresql_apps_redacted | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'absent') | list }}
+
+postgresql_provisioners_redacted: >-
+  {{ postgresql_provisioners | map('combine', {'password': 'redacted'}) | list }}
+postgresql_present_provisioners_redacted: >-
+  {{ postgresql_provisioners_redacted | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'present') | list }}
+postgresql_absent_provisioners_redacted: >-
+  {{ postgresql_provisioners_redacted | selectattr('state', 'defined')
      | selectattr('state', 'equalto', 'absent') | list }}
 
 postgresql_max_connections: 100

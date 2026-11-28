@@ -108,6 +108,78 @@
     label: "{{ item.app.name }}"
   when: not ansible_check_mode
 
+- name: Read PostgreSQL provisioner role attributes
+  community.postgresql.postgresql_query:
+    login_unix_socket: "{{ postgresql_socket_dir }}"
+    query: >-
+      SELECT rolname, rolcanlogin, rolsuper, rolcreatedb, rolcreaterole,
+             rolconnlimit
+      FROM pg_roles
+      WHERE rolname = %s
+    positional_args:
+      - "{{ provisioner.user }}"
+  loop: "{{ postgresql_present_provisioners_redacted }}"
+  loop_control:
+    loop_var: provisioner
+    label: "{{ provisioner.name }}"
+  become: true
+  become_user: postgres
+  register: postgresql_provisioner_role_check
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert PostgreSQL provisioner role attributes
+  ansible.builtin.assert:
+    that:
+      - (item.query_result | length) == 1
+      - (item.query_result[0] | default({})).rolcanlogin | default(false) | bool
+      - not ((item.query_result[0] | default({})).rolsuper | default(false) | bool)
+      - (item.query_result[0] | default({})).rolcreatedb | default(false) | bool
+      - (item.query_result[0] | default({})).rolcreaterole | default(false) | bool
+      - >-
+        (item.query_result[0] | default({})).rolconnlimit | default(-999) | int ==
+        (item.provisioner.connection_limit | default(-1) | int)
+    fail_msg: >-
+      A present provisioner role is missing or does not have LOGIN, CREATEDB,
+      CREATEROLE, NOSUPERUSER, and the expected connection limit.
+    quiet: true
+  loop: "{{ postgresql_provisioner_role_check.results }}"
+  loop_control:
+    label: "{{ item.provisioner.name }}"
+  when: not ansible_check_mode
+
+- name: Read HBA rules for absent PostgreSQL provisioners
+  community.postgresql.postgresql_query:
+    login_unix_socket: "{{ postgresql_socket_dir }}"
+    query: >-
+      SELECT count(*) AS rule_count
+      FROM pg_hba_file_rules
+      WHERE user_name @> ARRAY[%s]::text[]
+    positional_args:
+      - "{{ provisioner.user }}"
+  loop: "{{ postgresql_absent_provisioners_redacted }}"
+  loop_control:
+    loop_var: provisioner
+    label: "{{ provisioner.name }}"
+  become: true
+  become_user: postgres
+  register: postgresql_absent_provisioner_hba_check
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert absent PostgreSQL provisioners have no HBA access
+  ansible.builtin.assert:
+    that:
+      - (item.query_result[0].rule_count | int) == 0
+    fail_msg: >-
+      An absent provisioner still has a pg_hba.conf access rule. Re-apply the
+      role to remove access. The role and its objects are retained.
+    quiet: true
+  loop: "{{ postgresql_absent_provisioner_hba_check.results }}"
+  loop_control:
+    label: "{{ item.provisioner.name }}"
+  when: not ansible_check_mode
+
 - name: Read PostgreSQL application database owners
   community.postgresql.postgresql_query:
     login_unix_socket: "{{ postgresql_socket_dir }}"

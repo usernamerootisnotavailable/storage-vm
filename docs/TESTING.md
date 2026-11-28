@@ -155,6 +155,10 @@ The MariaDB scenario proves two applications with distinct accounts and
 databases. The role's `mariadb_host_from_cidr` filter maps exact IPv4 hosts and
 IPv4 network/netmask hosts; broader IPv6 networks fail by design.
 
+The PostgreSQL and MariaDB scenarios also create a scoped provisioner account.
+The verifier uses that account to create a throwaway role/database and a
+throwaway database/account/grant, checks the result, and removes the objects.
+
 ## Full-stack integration
 
 The integration target starts the development container, generates ephemeral credentials for every service, applies `site.yml` with `inventories/ci`, and runs verification. The CI inventory uses loopback for the container connection and reserved documentation values for everything else. It logs in as each present CI PostgreSQL app over loopback with TLS and asserts the database, user, and SSL state. It also logs in as each present CI MariaDB app over loopback with the MariaDB CA, asserting `DATABASE()`, `CURRENT_USER()`, and a non-empty `Ssl_cipher`. The MariaDB proof runs only when present `mariadb_apps` entries exist. It then creates a test index, creates and reads an Elasticsearch snapshot through the shared read/write Garage S3 key, and always deletes the snapshot and index. Finally it applies `site.yml` again and asserts `changed=0`. Verification also includes a Garage-backed snapshot repository check and NGINX TLS routing to both Elasticsearch and Garage. CI NGINX uses generated certificates, so integration never contacts Let's Encrypt or Cloudflare.

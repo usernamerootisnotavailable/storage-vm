@@ -122,6 +122,114 @@
   loop_control:
     label: "{{ item.0.name | default('<unnamed>') }}:{{ item.1 }}"
 
+- name: Validate MariaDB provisioner attributes
+  ansible.builtin.assert:
+    that:
+      - item.state | default('') in ['present', 'absent']
+      - item.name | default('') is match('^[a-z_][a-z0-9_]*$')
+      - item.name | default('') | length <= 64
+      - item.user | default('') is match('^[a-z_][a-z0-9_]*$')
+      - item.user | default('') | length <= 32
+      - >-
+        item.user | default('') not in
+        ['root', 'mysql', 'mariadb', 'mariadb.sys', 'mysql.sys',
+         'information_schema', 'performance_schema', 'sys', 'public', 'system']
+      - item.database_prefix | default('') is match('^[a-z][a-z0-9]*$')
+      - item.database_prefix | default('') | length <= 32
+      - item.cidrs | default([]) | length > 0
+      - >-
+        item.cidrs | default([]) | length ==
+        (item.cidrs | default([]) | unique | length)
+    fail_msg: >-
+      Every mariadb_provisioners entry needs an explicit state, a lowercase
+      name and non-reserved account, a lowercase database_prefix without
+      wildcard characters, and non-empty unique source CIDRs.
+    quiet: true
+  loop: "{{ mariadb_provisioners_redacted }}"
+  loop_control:
+    label: "{{ item.name | default('<unnamed>') }}"
+
+- name: Require strong MariaDB provisioner passwords
+  ansible.builtin.assert:
+    that:
+      - item.password | default('') | length >= 16
+    fail_msg: >-
+      Every mariadb_provisioners entry requires a password of at least 16
+      characters, sourced from SOPS.
+    quiet: true
+  loop: "{{ mariadb_provisioners }}"
+  loop_control:
+    label: "{{ item.name | default('<unnamed>') }}"
+  no_log: true
+
+- name: Validate MariaDB provisioner source CIDRs
+  ansible.builtin.assert:
+    that:
+      - item.1 != '0.0.0.0/0'
+      - item.1 != '::/0'
+      - item.1.split('/') | length == 2
+      - item.1.split('/')[1] | default('0') | int > 0
+      - >-
+        item.1 is match(
+        '^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}'
+        ~ '(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
+        ~ '/(?:3[0-2]|[12]?[0-9])$')
+        or
+        item.1 is match('^[0-9A-Fa-f:]+/(?:12[0-8]|1[01][0-9]|[1-9]?[0-9])$')
+    fail_msg: >-
+      Provisioner CIDRs must be valid IPv4 or IPv6 networks with a non-zero
+      prefix. 0.0.0.0/0 and ::/0 are forbidden.
+    quiet: true
+  loop: "{{ mariadb_provisioners_redacted | subelements('cidrs') }}"
+  loop_control:
+    label: "{{ item.0.name | default('<unnamed>') }}:{{ item.1 }}"
+
+- name: Validate MariaDB provisioner account host derivation
+  ansible.builtin.assert:
+    that:
+      - item.1 | mariadb_host_from_cidr | length > 0
+    fail_msg: >-
+      Every provisioner CIDR must derive a MariaDB account host. Broader IPv6
+      networks are not supported because MariaDB netmask syntax is IPv4-only.
+      Use an exact IPv6 /128 source address.
+    quiet: true
+  loop: "{{ mariadb_provisioners_redacted | subelements('cidrs') }}"
+  loop_control:
+    label: "{{ item.0.name | default('<unnamed>') }}:{{ item.1 }}"
+
+- name: Validate MariaDB provisioner uniqueness
+  ansible.builtin.assert:
+    that:
+      - >-
+        (mariadb_provisioners | map(attribute='name') | list | length) ==
+        (mariadb_provisioners | map(attribute='name') | list | unique | length)
+      - >-
+        (mariadb_provisioners | map(attribute='user') | list | length) ==
+        (mariadb_provisioners | map(attribute='user') | list | unique | length)
+      - >-
+        (mariadb_provisioners | map(attribute='database_prefix') | list | length) ==
+        (mariadb_provisioners | map(attribute='database_prefix') | list
+         | unique | length)
+    fail_msg: >-
+      Provisioner names, users, and database prefixes must be unique within
+      mariadb_provisioners.
+    quiet: true
+
+- name: Validate MariaDB application and provisioner identity separation
+  ansible.builtin.assert:
+    that:
+      - >-
+        (mariadb_apps | map(attribute='user') | list) |
+        intersect(mariadb_provisioners | map(attribute='user') | list) |
+        length == 0
+      - >-
+        (mariadb_apps | map(attribute='name') | list) |
+        intersect(mariadb_provisioners | map(attribute='name') | list) |
+        length == 0
+    fail_msg: >-
+      Application and provisioner names and users must be disjoint.
+    quiet: true
+
 - name: Validate the listener
   ansible.builtin.assert:
     that:
@@ -129,25 +237,26 @@
     fail_msg: mariadb_bind_address must be 127.0.0.1 or 0.0.0.0.
     quiet: true
 
-- name: Require a reachable listener for non-loopback MariaDB applications
+- name: Require a reachable listener for non-loopback MariaDB clients
   ansible.builtin.assert:
     that:
       - >-
-        mariadb_non_loopback_app_cidrs | length == 0 or
+        mariadb_non_loopback_client_cidrs | length == 0 or
         mariadb_bind_address != '127.0.0.1'
     fail_msg: >-
-      A non-loopback MariaDB application CIDR requires mariadb_bind_address to
-      be 0.0.0.0. Loopback-only listeners cannot accept external applications.
+      A non-loopback MariaDB app or provisioner CIDR requires
+      mariadb_bind_address to be 0.0.0.0. Loopback-only listeners cannot
+      accept external clients.
     quiet: true
 
-- name: Require app CIDRs when listening on every interface
+- name: Require client CIDRs when listening on every interface
   ansible.builtin.assert:
     that:
       - >-
         mariadb_bind_address != '0.0.0.0' or
         not (mariadb_manage_firewall | bool) or
-        mariadb_app_cidrs | length > 0
+        mariadb_client_cidrs | length > 0
     fail_msg: >-
-      Define at least one present mariadb_apps entry with CIDRs when MariaDB
-      listens on every interface and firewalld is managed.
+      Define at least one present app or provisioner entry with CIDRs when
+      MariaDB listens on every interface and firewalld is managed.
     quiet: true

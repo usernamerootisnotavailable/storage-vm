@@ -1,0 +1,30 @@
+---
+- name: Find absent MariaDB provisioner accounts
+  ansible.mariadb.mariadb_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    query: >-
+      SELECT User, Host
+      FROM mysql.user
+      WHERE User = %s
+        AND FIND_IN_SET(Host, %s) > 0
+    positional_args:
+      - "{{ mariadb_absent_provisioner.user }}"
+      - >-
+        {{ mariadb_absent_provisioner.cidrs | map('mariadb_host_from_cidr')
+           | unique | join(',') }}
+  register: mariadb_absent_provisioner_accounts
+  changed_when: false
+
+- name: Remove privileges from absent MariaDB provisioner accounts
+  ansible.mariadb.mariadb_user:
+    name: "{{ item.User }}"
+    host: "{{ item.Host }}"
+    priv: "*.*:USAGE"
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    state: present
+  loop: "{{ mariadb_absent_provisioner_accounts.query_result[0] | default([]) }}"
+  loop_control:
+    label: "{{ mariadb_absent_provisioner.name }}@{{ item.Host }}"
+  no_log: true

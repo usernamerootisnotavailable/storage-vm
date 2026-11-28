@@ -20,6 +20,9 @@
 - name: Create application access
   ansible.builtin.import_tasks: users.yml
 
+- name: Create provisioner access
+  ansible.builtin.import_tasks: provisioners.yml
+
 - name: Configure the firewall
   ansible.builtin.import_tasks: firewall.yml
 

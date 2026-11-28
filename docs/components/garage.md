@@ -94,6 +94,9 @@ Garage data is not backed up by this role. For disaster recovery:
 
 Elasticsearch snapshots stored in Garage are not an off-host backup if Garage runs on the same host.
 
+Manual bucket and key operations, including restore, are in
+[`docs/GARAGE-RUNBOOK.md`](../GARAGE-RUNBOOK.md).
+
 ## Verification
 
 The role verifies:

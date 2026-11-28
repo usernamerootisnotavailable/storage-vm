@@ -1,0 +1,58 @@
+---
+- name: Read absent MariaDB provisioner global privileges
+  ansible.mariadb.mariadb_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    query: >-
+      SELECT COUNT(*) AS privileged_count
+      FROM mysql.user
+      WHERE User = %s AND Host = %s
+        AND (Create_priv = 'Y' OR Create_user_priv = 'Y' OR Grant_priv = 'Y'
+             OR Super_priv = 'Y' OR File_priv = 'Y' OR Process_priv = 'Y'
+             OR Shutdown_priv = 'Y' OR Reload_priv = 'Y' OR Drop_priv = 'Y')
+    positional_args:
+      - "{{ mariadb_absent_provisioner.user }}"
+      - "{{ mariadb_absent_provisioner_host }}"
+  loop: "{{ mariadb_absent_provisioner.cidrs | map('mariadb_host_from_cidr') | unique | sort }}"
+  loop_control:
+    loop_var: mariadb_absent_provisioner_host
+    label: "{{ mariadb_absent_provisioner.name }}@{{ mariadb_absent_provisioner_host }}"
+  register: mariadb_absent_provisioner_global
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Read absent MariaDB provisioner prefix grants
+  ansible.mariadb.mariadb_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    login_user: root
+    query: >-
+      SELECT COUNT(*) AS grant_count
+      FROM mysql.db
+      WHERE User = %s AND Host = %s AND Db = %s
+    positional_args:
+      - "{{ mariadb_absent_provisioner.user }}"
+      - "{{ mariadb_absent_provisioner_host }}"
+      - "{{ mariadb_absent_provisioner.database_prefix }}%"
+  loop: "{{ mariadb_absent_provisioner.cidrs | map('mariadb_host_from_cidr') | unique | sort }}"
+  loop_control:
+    loop_var: mariadb_absent_provisioner_host
+    label: "{{ mariadb_absent_provisioner.name }}@{{ mariadb_absent_provisioner_host }}"
+  register: mariadb_absent_provisioner_grants
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Assert absent MariaDB provisioners have no privileges
+  ansible.builtin.assert:
+    that:
+      - (item.0.query_result[0].privileged_count | int) == 0
+      - (item.1.query_result[0].grant_count | int) == 0
+    fail_msg: >-
+      An absent MariaDB provisioner still has global or prefix-scoped
+      privileges. Re-apply the role to remove access. The account is retained.
+    quiet: true
+  loop: >-
+    {{ mariadb_absent_provisioner_global.results | default([])
+       | zip(mariadb_absent_provisioner_grants.results | default([])) | list }}
+  loop_control:
+    label: "{{ mariadb_absent_provisioner.name }}@{{ item.0.mariadb_absent_provisioner_host | default('') }}"
+  when: not ansible_check_mode

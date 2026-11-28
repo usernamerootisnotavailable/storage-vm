@@ -23,6 +23,8 @@ for document in \
   docs/CONTRIBUTING.md \
   docs/COMPONENTS.md \
   docs/DATABASES.md \
+  docs/APP-PROVISIONING.md \
+  docs/GARAGE-RUNBOOK.md \
   docs/TOFU.md \
   docs/HANDOFF.md \
   docs/components/postgresql.md \

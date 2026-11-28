@@ -48,6 +48,15 @@ provisioner:
             cidrs:
               - 127.0.0.1/32
         mariadb_tls_mode: generated
+        mariadb_provisioners:
+          - state: present
+            name: provisioner
+            user: provisioner
+            password: >-
+              {{ lookup('password', '/tmp/mol-mariadb-provisioner length=32 chars=ascii_letters,digits') }}
+            cidrs:
+              - 127.0.0.1/32
+            database_prefix: throwaway
         mariadb_backup_enabled: true
         mariadb_backup_dir: /var/backups/mariadb
         mariadb_backup_on_calendar: "*-*-* 03:15:00"

@@ -35,6 +35,13 @@ mariadb_firewall_zone: "{{ common_firewall_zone | default('public') }}"
 # database grants, and firewall exposure; app deployments own migrations.
 mariadb_apps: []
 
+# Optional scoped provisioning accounts. A present account receives global
+# CREATE and CREATE USER plus prefix-scoped ALL/GRANT on matching databases.
+# It never receives global ALL, global GRANT OPTION, SUPER, or administrative
+# privileges. Absent entries remove privileges and firewall access only; the
+# account is retained.
+mariadb_provisioners: []
+
 # Derived values. Do not set these in inventory.
 mariadb_present_apps: >-
   {{ mariadb_apps | selectattr('state', 'defined')
@@ -48,8 +55,27 @@ mariadb_absent_app_cidrs: >-
   {{ mariadb_absent_apps | map(attribute='cidrs') | flatten | unique | sort }}
 mariadb_absent_only_app_cidrs: >-
   {{ mariadb_absent_app_cidrs | difference(mariadb_app_cidrs) }}
-mariadb_non_loopback_app_cidrs: >-
-  {{ mariadb_app_cidrs | reject('match', '^127\.')
+
+mariadb_present_provisioners: >-
+  {{ mariadb_provisioners | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'present') | list }}
+mariadb_absent_provisioners: >-
+  {{ mariadb_provisioners | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'absent') | list }}
+mariadb_provisioner_cidrs: >-
+  {{ mariadb_present_provisioners | map(attribute='cidrs') | flatten | unique | sort }}
+mariadb_absent_provisioner_cidrs: >-
+  {{ mariadb_absent_provisioners | map(attribute='cidrs') | flatten | unique | sort }}
+mariadb_absent_only_provisioner_cidrs: >-
+  {{ mariadb_absent_provisioner_cidrs | difference(mariadb_provisioner_cidrs) }}
+
+mariadb_client_cidrs: >-
+  {{ (mariadb_app_cidrs + mariadb_provisioner_cidrs) | unique | sort }}
+mariadb_absent_only_client_cidrs: >-
+  {{ (mariadb_absent_only_app_cidrs + mariadb_absent_only_provisioner_cidrs)
+     | unique | sort }}
+mariadb_non_loopback_client_cidrs: >-
+  {{ mariadb_client_cidrs | reject('match', '^127\.')
      | reject('equalto', '::1/128') | list }}
 
 # Redacted copies keep app passwords out of validation and loop failure output.
@@ -60,6 +86,15 @@ mariadb_present_apps_redacted: >-
      | selectattr('state', 'equalto', 'present') | list }}
 mariadb_absent_apps_redacted: >-
   {{ mariadb_apps_redacted | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'absent') | list }}
+
+mariadb_provisioners_redacted: >-
+  {{ mariadb_provisioners | map('combine', {'password': 'redacted'}) | list }}
+mariadb_present_provisioners_redacted: >-
+  {{ mariadb_provisioners_redacted | selectattr('state', 'defined')
+     | selectattr('state', 'equalto', 'present') | list }}
+mariadb_absent_provisioners_redacted: >-
+  {{ mariadb_provisioners_redacted | selectattr('state', 'defined')
      | selectattr('state', 'equalto', 'absent') | list }}
 
 mariadb_max_connections: 100

@@ -13,7 +13,8 @@ multiple external applications.
 - Apply SELinux contexts and port labels
 - Create application roles, databases, and requested extensions with SCRAM
   authentication
-- Add firewalld rules for the union of present application CIDRs
+- Create optional scoped provisioner roles with `CREATEDB` and `CREATEROLE`
+- Add firewalld rules for the union of present application and provisioner CIDRs
 - Install a daily logical backup timer
 - Verify service health, HBA rules, roles, databases, extensions, and TLS
 
@@ -65,6 +66,33 @@ postgresql_backup_enabled: true
 Production should use `postgresql_tls_mode: provided` with CA-issued
 certificates.
 
+## Provisioner roles
+
+`postgresql_provisioners` defines optional scoped provisioning roles for
+application pipelines:
+
+```yaml
+postgresql_provisioners:
+  - state: present
+    name: app-provisioner
+    user: app_provisioner
+    password: "{{ secret_postgresql_app_provisioner_password | mandatory }}"
+    cidrs:
+      - "<REPLACE_WITH_APP_CIDR>"
+    connection_limit: 10
+    rotate_password: false
+```
+
+Each present provisioner receives `LOGIN`, `CREATEDB`, `CREATEROLE`, and
+`NOSUPERUSER`. It may connect only to the `postgres` database over TLS. It can
+create roles and databases, but cannot become a superuser or alter the server
+configuration. Absent entries remove HBA and firewall access only; the role and
+the objects it created are retained.
+
+Provisioner and application users and names must be disjoint. See
+[`docs/APP-PROVISIONING.md`](../../docs/APP-PROVISIONING.md) for the reviewed
+exception and the exact privilege contract.
+
 ## Application lifecycle
 
 - `state: present` creates or updates the role, its databases, and requested
@@ -95,10 +123,12 @@ The role checks:
 - Service state and `pg_isready`
 - `pg_hba_file_rules` parse errors and absence of broad host rules
 - Present role attributes and connection limits
+- Present provisioner attributes: `LOGIN`, `CREATEDB`, `CREATEROLE`,
+  `NOSUPERUSER`, and connection limit
 - Present database existence and ownership
 - Requested extensions in each database
 - The running TLS setting and TLS file permissions
-- Absent apps have no HBA access
+- Absent apps and provisioners have no HBA access
 - Backup timer enablement
 
 It does not connect as application users. External applications are verified by

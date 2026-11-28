@@ -12,8 +12,9 @@ multiple external applications.
 - Enforce TLS for TCP connections
 - Install the vendor SELinux policy and apply file/port labels
 - Create application databases, accounts, database grants, and TLS requirements
-- Derive account hosts from application source CIDRs
-- Add or remove firewalld rules from application CIDRs
+- Create optional scoped provisioner accounts with prefix-scoped ALL/GRANT
+- Derive account hosts from application and provisioner source CIDRs
+- Add or remove firewalld rules from application and provisioner CIDRs
 - Install a daily logical backup timer
 - Verify accounts, databases, grants, and TLS requirements as root
 
@@ -85,6 +86,37 @@ Invalid CIDRs fail with an explicit error. No application account is created for
 - A non-loopback app CIDR requires `mariadb_bind_address: "0.0.0.0"`.
 - Do not add raw `GRANT` statements or manual accounts. Extend `mariadb_apps`.
 
+## Provisioner accounts
+
+`mariadb_provisioners` defines optional scoped provisioning accounts for
+application pipelines:
+
+```yaml
+mariadb_provisioners:
+  - state: present
+    name: app-provisioner
+    user: app_provisioner
+    password: "{{ secret_mariadb_app_provisioner_password | mandatory }}"
+    cidrs:
+      - "<REPLACE_WITH_APP_CIDR>"
+    database_prefix: app
+```
+
+Each present account receives:
+
+- global `CREATE` and `CREATE USER`
+- `ALL` with `GRANT OPTION` only on databases matching `<database_prefix>%`
+- `REQUIRE SSL`
+
+It does not receive global `ALL`, global `GRANT OPTION`, `SUPER`, `FILE`,
+`PROCESS`, `SHUTDOWN`, `RELOAD`, or global `DROP`. `database_prefix` must be
+lowercase letters and digits only; `%` and `_` are not allowed because they are
+MariaDB grant wildcards.
+
+Absent entries remove global and prefix grants and firewall access only; the
+account is retained. Provisioner and application users and names must be
+disjoint. See [`docs/APP-PROVISIONING.md`](../../docs/APP-PROVISIONING.md).
+
 ## Authentication
 
 - Local root uses the `unix_socket` plugin.
@@ -102,7 +134,10 @@ The role checks:
 - Every present account exists for every derived host
 - `mysql.user.ssl_type` is `ANY`, `X509`, or `SPECIFIED`
 - Every declared database has a `mysql.db` grant for every derived host
-- Absent apps have no database grants for their declared databases and hosts
+- Present provisioners have global `CREATE` and `CREATE USER`, no global
+  `GRANT OPTION` or administrative privileges, and a prefix-scoped `ALL/GRANT`
+  row
+- Absent apps and provisioners have no database or prefix grants
 - TLS file permissions
 - Backup timer enablement
 

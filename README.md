@@ -25,6 +25,8 @@ One host runs all services per environment. Development and production use the s
 | Encrypted environment files and generation | Generation flow implemented; human runs `make generate` |
 | Synthetic CI inventory | Implemented (`inventories/ci`) |
 | OpenTofu VM provisioning | Implemented; fmt, validate, and tflint pass; no plan/apply run |
+| Scoped database provisioners | Implemented; Molecule verification pending Docker/CI |
+| Garage and Elasticsearch app runbooks | Documented manual operations |
 
 `site.yml` applies `common`, PostgreSQL, MariaDB, Garage, Elasticsearch, NGINX, and verification in dependency order. Garage is configured before Elasticsearch so the snapshot repository can be registered and verified. NGINX runs after Elasticsearch so it can trust the Elasticsearch CA.
 
@@ -128,6 +130,8 @@ Production deployment requires approval, a backup, and the production age key. S
 | [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) | Change workflow and review checklist |
 | [`docs/COMPONENTS.md`](docs/COMPONENTS.md) | Component contracts and verified platform data |
 | [`docs/DATABASES.md`](docs/DATABASES.md) | Cross-engine policy for PostgreSQL and MariaDB applications |
+| [`docs/APP-PROVISIONING.md`](docs/APP-PROVISIONING.md) | Provisioner accounts and app credential interfaces |
+| [`docs/GARAGE-RUNBOOK.md`](docs/GARAGE-RUNBOOK.md) | Manual Garage bucket and key operations |
 | [`docs/TOFU.md`](docs/TOFU.md) | OpenTofu VM provisioning, state encryption, and handoff |
 | [`docs/HANDOFF.md`](docs/HANDOFF.md) | First VM handoff and first Ansible connection |
 | [`docs/components/postgresql.md`](docs/components/postgresql.md) | PostgreSQL role reference |

@@ -104,6 +104,49 @@ argument_specs:
             type: bool
             default: false
             description: Allow the password of an existing role to be updated.
+      postgresql_provisioners:
+        type: list
+        elements: dict
+        description:
+          - Optional scoped provisioning roles. Present roles receive LOGIN,
+            CREATEDB, and CREATEROLE, never SUPERUSER, and may connect only to
+            the postgres database over TLS.
+          - Absent entries remove HBA and firewall access only. The role and
+            any objects it created are retained.
+        options:
+          state:
+            type: str
+            required: true
+            choices:
+              - present
+              - absent
+            description: Whether access is present or removed.
+          name:
+            type: str
+            required: true
+            description: Unique lowercase provisioner name.
+          user:
+            type: str
+            required: true
+            description: Unique lowercase PostgreSQL role name.
+          password:
+            type: str
+            required: true
+            no_log: true
+            description: Provisioner password from SOPS, at least 16 characters.
+          cidrs:
+            type: list
+            elements: str
+            required: true
+            description: Non-empty list of source CIDRs. Default routes are forbidden.
+          connection_limit:
+            type: int
+            default: -1
+            description: PostgreSQL connection limit; must be -1 or greater.
+          rotate_password:
+            type: bool
+            default: false
+            description: Allow the password of an existing role to be updated.
       postgresql_max_connections:
         type: int
         description: Maximum connections.

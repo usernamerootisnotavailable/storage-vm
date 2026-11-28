@@ -9,6 +9,100 @@
         name: mariadb
         tasks_from: verify
 
+    - name: Exercise the MariaDB provisioner
+      when: not ansible_check_mode
+      block:
+        - name: Set the provisioner for the exercise
+          ansible.builtin.set_fact:
+            mariadb_test_provisioner: >-
+              {{ mariadb_provisioners
+                 | selectattr('state', 'defined')
+                 | selectattr('state', 'equalto', 'present')
+                 | list | first }}
+          no_log: true
+
+        - name: Set the throwaway database password
+          ansible.builtin.set_fact:
+            mariadb_throwaway_password: >-
+              {{ lookup('password', '/tmp/mol-mariadb-throwaway length=32 chars=ascii_letters,digits') }}
+          no_log: true
+
+        - name: Create a throwaway MariaDB database as the provisioner
+          ansible.mariadb.mariadb_query:
+            login_host: 127.0.0.1
+            login_port: "{{ mariadb_port }}"
+            login_user: "{{ mariadb_test_provisioner.user }}"
+            login_password: "{{ mariadb_test_provisioner.password }}"
+            ca_cert: "{{ mariadb_tls_ca_path }}"
+            query: "CREATE DATABASE throwaway_db"
+          no_log: true
+
+        - name: Create a throwaway MariaDB account as the provisioner
+          ansible.mariadb.mariadb_query:
+            login_host: 127.0.0.1
+            login_port: "{{ mariadb_port }}"
+            login_user: "{{ mariadb_test_provisioner.user }}"
+            login_password: "{{ mariadb_test_provisioner.password }}"
+            ca_cert: "{{ mariadb_tls_ca_path }}"
+            query: >-
+              CREATE USER 'throwaway_user'@'127.0.0.1'
+              IDENTIFIED BY '{{ mariadb_throwaway_password }}'
+          no_log: true
+
+        - name: Grant the throwaway MariaDB account access as the provisioner
+          ansible.mariadb.mariadb_query:
+            login_host: 127.0.0.1
+            login_port: "{{ mariadb_port }}"
+            login_user: "{{ mariadb_test_provisioner.user }}"
+            login_password: "{{ mariadb_test_provisioner.password }}"
+            ca_cert: "{{ mariadb_tls_ca_path }}"
+            query: >-
+              GRANT ALL PRIVILEGES ON throwaway_db.*
+              TO 'throwaway_user'@'127.0.0.1'
+          no_log: true
+
+        - name: Verify the throwaway MariaDB objects
+          ansible.mariadb.mariadb_query:
+            login_unix_socket: "{{ mariadb_socket }}"
+            login_user: root
+            query: >-
+              SELECT
+                EXISTS(SELECT 1 FROM information_schema.SCHEMATA
+                       WHERE SCHEMA_NAME = 'throwaway_db') AS db_exists,
+                EXISTS(SELECT 1 FROM mysql.user
+                       WHERE User = 'throwaway_user'
+                         AND Host = '127.0.0.1') AS user_exists,
+                EXISTS(SELECT 1 FROM mysql.db
+                       WHERE User = 'throwaway_user'
+                         AND Host = '127.0.0.1'
+                         AND Db = 'throwaway_db') AS grant_exists
+          register: mariadb_throwaway_check
+          changed_when: false
+
+        - name: Assert the provisioner created the throwaway objects
+          ansible.builtin.assert:
+            that:
+              - mariadb_throwaway_check.query_result[0].db_exists | bool
+              - mariadb_throwaway_check.query_result[0].user_exists | bool
+              - mariadb_throwaway_check.query_result[0].grant_exists | bool
+            fail_msg: The MariaDB provisioner could not create a database, account, and grant.
+            quiet: true
+      always:
+        - name: Drop the throwaway MariaDB account
+          ansible.mariadb.mariadb_user:
+            name: throwaway_user
+            host: 127.0.0.1
+            state: absent
+            login_unix_socket: "{{ mariadb_socket }}"
+            login_user: root
+
+        - name: Drop the throwaway MariaDB database
+          ansible.mariadb.mariadb_db:
+            name: throwaway_db
+            state: absent
+            login_unix_socket: "{{ mariadb_socket }}"
+            login_user: root
+
     - name: Run the MariaDB backup service
       ansible.builtin.systemd_service:
         name: mariadb-backup.service

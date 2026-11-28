@@ -66,6 +66,22 @@
     label: "{{ mariadb_absent_app.name }}"
   when: not ansible_check_mode
 
+- name: Verify present MariaDB provisioners
+  ansible.builtin.include_tasks: verify-provisioner.yml
+  loop: "{{ mariadb_present_provisioners_redacted }}"
+  loop_control:
+    loop_var: mariadb_provisioner
+    label: "{{ mariadb_provisioner.name }}"
+  when: not ansible_check_mode
+
+- name: Verify absent MariaDB provisioners
+  ansible.builtin.include_tasks: verify-absent-provisioner.yml
+  loop: "{{ mariadb_absent_provisioners_redacted }}"
+  loop_control:
+    loop_var: mariadb_absent_provisioner
+    label: "{{ mariadb_absent_provisioner.name }}"
+  when: not ansible_check_mode
+
 - name: Verify the TLS files
   ansible.builtin.stat:
     path: "{{ item }}"

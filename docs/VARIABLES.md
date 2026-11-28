@@ -217,6 +217,13 @@ syntax is IPv4-only. Every present account requires SSL.
 `mariadb_apps` entries have no extension or connection-limit fields. Use
 `postgresql_apps` for those PostgreSQL-only features.
 
+Optional scoped provisioner accounts use `postgresql_provisioners` and
+`mariadb_provisioners`. They are the reviewed exception that lets an
+application create its own roles, databases, and scoped grants without a
+superuser. See [Application provisioning](APP-PROVISIONING.md) for the exact
+variable and privilege contract. The storage host still owns provisioner
+credentials, scope, HBA or account hosts, TLS, and firewall exposure.
+
 ## Versions
 
 - Versions live in `inventories/<env>/group_vars/all/versions.yml`.

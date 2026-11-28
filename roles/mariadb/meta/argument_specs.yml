@@ -99,6 +99,46 @@ argument_specs:
             description:
               - Non-empty list of source CIDRs. Default routes are forbidden.
               - Account hosts are derived from these CIDRs.
+      mariadb_provisioners:
+        type: list
+        elements: dict
+        description:
+          - Optional scoped provisioning accounts. Present accounts receive
+            global CREATE and CREATE USER plus prefix-scoped ALL/GRANT on
+            matching databases. They never receive global ALL, global GRANT
+            OPTION, SUPER, or administrative privileges.
+          - Absent entries remove privileges and firewall access only. The
+            account is retained.
+        options:
+          state:
+            type: str
+            required: true
+            choices:
+              - present
+              - absent
+            description: Whether access is present or removed.
+          name:
+            type: str
+            required: true
+            description: Unique lowercase provisioner name.
+          user:
+            type: str
+            required: true
+            description: Unique lowercase MariaDB account name.
+          password:
+            type: str
+            required: true
+            no_log: true
+            description: Provisioner password from SOPS, at least 16 characters.
+          cidrs:
+            type: list
+            elements: str
+            required: true
+            description: Non-empty list of source CIDRs. Default routes are forbidden.
+          database_prefix:
+            type: str
+            required: true
+            description: Lowercase database prefix for the scoped ALL/GRANT rule.
       mariadb_max_connections:
         type: int
         description: Maximum connections.

@@ -58,6 +58,103 @@
     label: "{{ item.name | default('<unnamed>') }}"
   no_log: true
 
+- name: Validate PostgreSQL provisioner attributes
+  ansible.builtin.assert:
+    that:
+      - item.state | default('') in ['present', 'absent']
+      - item.name | default('') is match('^[a-z_][a-z0-9_]*$')
+      - item.name | default('') | length <= 63
+      - item.user | default('') is match('^[a-z_][a-z0-9_]*$')
+      - item.user | default('') | length <= 63
+      - >-
+        item.user | default('') not in
+        ['postgres', 'public', 'all', 'sameuser', 'samerole', 'replication']
+      - item.cidrs | default([]) | length > 0
+      - >-
+        item.cidrs | default([]) | length ==
+        (item.cidrs | default([]) | unique | length)
+      - item.connection_limit | default(-1) | int >= -1
+      - item.rotate_password | default(false) is boolean
+    fail_msg: >-
+      Every postgresql_provisioners entry needs an explicit state, a lowercase
+      name and non-reserved user, non-empty unique cidrs, connection_limit >=
+      -1, and a boolean rotate_password.
+    quiet: true
+  loop: "{{ postgresql_provisioners_redacted }}"
+  loop_control:
+    label: "{{ item.name | default('<unnamed>') }}"
+
+- name: Require strong PostgreSQL provisioner passwords
+  ansible.builtin.assert:
+    that:
+      - item.password | default('') | length >= 16
+    fail_msg: >-
+      Every postgresql_provisioners entry requires a password of at least 16
+      characters, sourced from SOPS.
+    quiet: true
+  loop: "{{ postgresql_provisioners }}"
+  loop_control:
+    label: "{{ item.name | default('<unnamed>') }}"
+  no_log: true
+
+- name: Validate PostgreSQL provisioner source CIDRs
+  ansible.builtin.assert:
+    that:
+      - item.1 != '0.0.0.0/0'
+      - item.1 != '::/0'
+      - item.1.split('/') | length == 2
+      - item.1.split('/')[1] | default('0') | int > 0
+      - >-
+        item.1 is match(
+        '^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}'
+        ~ '(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
+        ~ '/(?:3[0-2]|[12]?[0-9])$')
+        or
+        item.1 is match('^[0-9A-Fa-f:]+/(?:12[0-8]|1[01][0-9]|[1-9]?[0-9])$')
+    fail_msg: >-
+      Provisioner CIDRs must be valid IPv4 or IPv6 networks with a non-zero
+      prefix. 0.0.0.0/0 and ::/0 are forbidden.
+    quiet: true
+  loop: "{{ postgresql_provisioners_redacted | subelements('cidrs') }}"
+  loop_control:
+    label: "{{ item.0.name | default('<unnamed>') }}:{{ item.1 }}"
+
+- name: Require TLS for PostgreSQL provisioners
+  ansible.builtin.assert:
+    that:
+      - postgresql_provisioners | length == 0 or postgresql_tls_enabled | bool
+    fail_msg: >-
+      PostgreSQL provisioners require TLS. Enable postgresql_tls_enabled.
+    quiet: true
+
+- name: Validate PostgreSQL provisioner name and user uniqueness
+  ansible.builtin.assert:
+    that:
+      - >-
+        (postgresql_provisioners | map(attribute='name') | list | length) ==
+        (postgresql_provisioners | map(attribute='name') | list | unique | length)
+      - >-
+        (postgresql_provisioners | map(attribute='user') | list | length) ==
+        (postgresql_provisioners | map(attribute='user') | list | unique | length)
+    fail_msg: >-
+      Provisioner names and users must be unique within postgresql_provisioners.
+    quiet: true
+
+- name: Validate PostgreSQL application and provisioner identity separation
+  ansible.builtin.assert:
+    that:
+      - >-
+        (postgresql_apps | map(attribute='user') | list) |
+        intersect(postgresql_provisioners | map(attribute='user') | list) |
+        length == 0
+      - >-
+        (postgresql_apps | map(attribute='name') | list) |
+        intersect(postgresql_provisioners | map(attribute='name') | list) |
+        length == 0
+    fail_msg: >-
+      Application and provisioner names and users must be disjoint.
+    quiet: true
+
 - name: Validate PostgreSQL application name and user uniqueness
   ansible.builtin.assert:
     that:
@@ -126,25 +223,26 @@
   loop_control:
     label: "{{ item.0.name | default('<unnamed>') }}:{{ item.1 }}"
 
-- name: Require TLS for non-loopback PostgreSQL applications
+- name: Require TLS for non-loopback PostgreSQL clients
   ansible.builtin.assert:
     that:
-      - postgresql_tls_enabled | bool or postgresql_non_loopback_app_cidrs | length == 0
+      - postgresql_tls_enabled | bool or postgresql_non_loopback_client_cidrs | length == 0
     fail_msg: >-
-      TLS is required when any present app has a non-loopback source CIDR.
-      Enable postgresql_tls_enabled or restrict the app to loopback.
+      TLS is required when any present app or provisioner has a non-loopback
+      source CIDR. Enable postgresql_tls_enabled or restrict access to loopback.
     quiet: true
 
-- name: Require a reachable listener for non-loopback PostgreSQL applications
+- name: Require a reachable listener for non-loopback PostgreSQL clients
   ansible.builtin.assert:
     that:
       - >-
-        postgresql_non_loopback_app_cidrs | length == 0 or
+        postgresql_non_loopback_client_cidrs | length == 0 or
         postgresql_listen_addresses.split(',') | map('trim') |
         reject('in', ['127.0.0.1', 'localhost', '::1']) | list | length > 0
     fail_msg: >-
       Set postgresql_listen_addresses to an address reachable by the present
-      app CIDRs. Loopback-only listeners cannot accept external applications.
+      app or provisioner CIDRs. Loopback-only listeners cannot accept external
+      clients.
     quiet: true
 
 - name: Require local loopback for administration and verification
@@ -158,14 +256,14 @@
       administration, backup, and verification.
     quiet: true
 
-- name: Require app CIDRs when listening on every interface
+- name: Require client CIDRs when listening on every interface
   ansible.builtin.assert:
     that:
       - >-
         postgresql_listen_addresses not in ['*', '0.0.0.0', '::'] or
-        postgresql_app_cidrs | length > 0
+        postgresql_client_cidrs | length > 0
     fail_msg: >-
-      Define at least one present postgresql_apps entry with CIDRs when
+      Define at least one present app or provisioner entry with CIDRs when
       PostgreSQL listens on every interface, or bind it to a specific address.
     quiet: true
   when: postgresql_manage_firewall | bool

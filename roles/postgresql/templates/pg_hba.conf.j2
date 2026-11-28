@@ -10,3 +10,9 @@ local       all       all                     peer
 {% endfor %}
 {% endfor %}
 {% endfor %}
+
+{% for provisioner in postgresql_provisioners if provisioner.state == 'present' %}
+{% for cidr in provisioner.cidrs %}
+hostssl     postgres  {{ provisioner.user }}  {{ cidr }}  scram-sha-256
+{% endfor %}
+{% endfor %}

@@ -3,8 +3,8 @@
   when:
     - mariadb_manage_firewall | bool
     - >-
-      mariadb_app_cidrs | length > 0 or
-      mariadb_absent_only_app_cidrs | length > 0
+      mariadb_client_cidrs | length > 0 or
+      mariadb_absent_only_client_cidrs | length > 0
   block:
     - name: Ensure firewalld is running
       ansible.builtin.systemd_service:
@@ -12,7 +12,7 @@
         enabled: true
         state: started
 
-    - name: Add MariaDB firewall rules for present applications
+    - name: Add MariaDB firewall rules for present clients
       ansible.posix.firewalld:
         rich_rule: >-
           rule family="{{ 'ipv6' if ':' in item else 'ipv4' }}"
@@ -22,11 +22,11 @@
         permanent: true
         immediate: true
         state: enabled
-      loop: "{{ mariadb_app_cidrs }}"
+      loop: "{{ mariadb_client_cidrs }}"
       loop_control:
         label: "{{ item }}"
 
-    - name: Remove MariaDB firewall rules for absent applications
+    - name: Remove MariaDB firewall rules for absent clients
       ansible.posix.firewalld:
         rich_rule: >-
           rule family="{{ 'ipv6' if ':' in item else 'ipv4' }}"
@@ -36,6 +36,6 @@
         permanent: true
         immediate: true
         state: disabled
-      loop: "{{ mariadb_absent_only_app_cidrs }}"
+      loop: "{{ mariadb_absent_only_client_cidrs }}"
       loop_control:
         label: "{{ item }}"
