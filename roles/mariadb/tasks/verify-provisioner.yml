@@ -38,7 +38,7 @@
     that:
       - item.query_result[0][0].Create_priv == 'Y'
       - item.query_result[0][0].Create_user_priv == 'Y'
-      - item.query_result[0][0].Grant_priv == 'N'
+      - item.query_result[0][0].Grant_priv == 'Y'
       - item.query_result[0][0].Super_priv == 'N'
       - item.query_result[0][0].File_priv == 'N'
       - item.query_result[0][0].Process_priv == 'N'
@@ -47,8 +47,9 @@
       - item.query_result[0][0].Drop_priv == 'N'
       - item.query_result[0][0].ssl_type in ['ANY', 'X509', 'SPECIFIED']
     fail_msg: >-
-      A present MariaDB provisioner has privileges beyond global CREATE and
-      CREATE USER with a prefix-scoped ALL/GRANT rule and SSL.
+      A present MariaDB provisioner has privileges beyond global CREATE,
+      CREATE USER, and GRANT OPTION with a prefix-scoped ALL/GRANT rule and
+      SSL.
     quiet: true
   loop: "{{ mariadb_provisioner_global_check.results }}"
   loop_control:

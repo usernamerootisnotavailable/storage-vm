@@ -36,8 +36,9 @@ mariadb_firewall_zone: "{{ common_firewall_zone | default('public') }}"
 mariadb_apps: []
 
 # Optional scoped provisioning accounts. A present account receives global
-# CREATE and CREATE USER plus prefix-scoped ALL/GRANT on matching databases.
-# It never receives global ALL, global GRANT OPTION, SUPER, or administrative
+# CREATE, CREATE USER, and GRANT OPTION plus prefix-scoped ALL/GRANT on
+# matching databases. The global GRANT OPTION can only grant privileges the
+# account already holds. It never receives global ALL, SUPER, or administrative
 # privileges. Absent entries remove privileges and firewall access only; the
 # account is retained.
 mariadb_provisioners: []

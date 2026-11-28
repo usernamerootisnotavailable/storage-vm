@@ -65,11 +65,12 @@ PostgreSQL provisioners:
 MariaDB provisioners:
 
 - are declared in `mariadb_provisioners`
-- receive global `CREATE` and `CREATE USER`
+- receive global `CREATE`, `CREATE USER`, and `GRANT OPTION`
 - receive `ALL` with `GRANT OPTION` only on databases matching
   `<database_prefix>%`
-- do not receive global `ALL`, global `GRANT OPTION`, `SUPER`, `FILE`,
-  `PROCESS`, `SHUTDOWN`, `RELOAD`, or global `DROP`
+- do not receive global `ALL`, `SUPER`, `FILE`, `PROCESS`, `SHUTDOWN`,
+  `RELOAD`, or global `DROP`; the global `GRANT OPTION` can only grant
+  privileges the account already holds
 - require SSL
 - lose global and prefix grants and firewall access on `state: absent`; the
   account is retained
@@ -438,8 +439,8 @@ MariaDB verifies:
 - Every present account exists for every derived host.
 - `mysql.user.ssl_type` requires SSL.
 - Every declared database has a `mysql.db` grant for every derived host.
-- Present provisioners have global `CREATE` and `CREATE USER`, no global
-  `GRANT OPTION` or administrative privileges, and a prefix-scoped `ALL/GRANT`
+- Present provisioners have global `CREATE`, `CREATE USER`, and `GRANT OPTION`,
+  no global `ALL` or administrative privileges, and a prefix-scoped `ALL/GRANT`
   row.
 - Absent apps and provisioners have no database or prefix grants.
 - TLS file permissions.

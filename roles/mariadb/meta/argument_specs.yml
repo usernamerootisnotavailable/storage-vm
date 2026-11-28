@@ -104,9 +104,10 @@ argument_specs:
         elements: dict
         description:
           - Optional scoped provisioning accounts. Present accounts receive
-            global CREATE and CREATE USER plus prefix-scoped ALL/GRANT on
-            matching databases. They never receive global ALL, global GRANT
-            OPTION, SUPER, or administrative privileges.
+            global CREATE, CREATE USER, and GRANT OPTION plus prefix-scoped
+            ALL/GRANT on matching databases. The global GRANT OPTION can only
+            grant privileges the account already holds. They never receive
+            global ALL, SUPER, or administrative privileges.
           - Absent entries remove privileges and firewall access only. The
             account is retained.
         options:

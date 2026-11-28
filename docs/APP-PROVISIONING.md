@@ -77,11 +77,12 @@ mariadb_provisioners:
 
 Privileges and access:
 
-- global `CREATE` and `CREATE USER`
+- global `CREATE`, `CREATE USER`, and `GRANT OPTION`
 - `ALL` with `GRANT OPTION` only on databases matching
   `<database_prefix>%`
-- no global `ALL`, global `GRANT OPTION`, `SUPER`, `FILE`, `PROCESS`,
-  `SHUTDOWN`, `RELOAD`, or global `DROP`
+- no global `ALL`, `SUPER`, `FILE`, `PROCESS`, `SHUTDOWN`, `RELOAD`, or global
+  `DROP`; the global `GRANT OPTION` can only grant privileges the account
+  already holds
 - `REQUIRE SSL` on every derived account host
 - source networks limited to the declared `cidrs`
 - firewall access derived from the same CIDRs

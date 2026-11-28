@@ -104,12 +104,13 @@ mariadb_provisioners:
 
 Each present account receives:
 
-- global `CREATE` and `CREATE USER`
+- global `CREATE`, `CREATE USER`, and `GRANT OPTION`
 - `ALL` with `GRANT OPTION` only on databases matching `<database_prefix>%`
 - `REQUIRE SSL`
 
-It does not receive global `ALL`, global `GRANT OPTION`, `SUPER`, `FILE`,
-`PROCESS`, `SHUTDOWN`, `RELOAD`, or global `DROP`. `database_prefix` must be
+It does not receive global `ALL`, `SUPER`, `FILE`,
+`PROCESS`, `SHUTDOWN`, `RELOAD`, or global `DROP`. The global `GRANT OPTION`
+can only grant privileges the account already holds. `database_prefix` must be
 lowercase letters and digits only; `%` and `_` are not allowed because they are
 MariaDB grant wildcards.
 
@@ -134,8 +135,8 @@ The role checks:
 - Every present account exists for every derived host
 - `mysql.user.ssl_type` is `ANY`, `X509`, or `SPECIFIED`
 - Every declared database has a `mysql.db` grant for every derived host
-- Present provisioners have global `CREATE` and `CREATE USER`, no global
-  `GRANT OPTION` or administrative privileges, and a prefix-scoped `ALL/GRANT`
+- Present provisioners have global `CREATE`, `CREATE USER`, and `GRANT OPTION`,
+  no global `ALL` or administrative privileges, and a prefix-scoped `ALL/GRANT`
   row
 - Absent apps and provisioners have no database or prefix grants
 - TLS file permissions

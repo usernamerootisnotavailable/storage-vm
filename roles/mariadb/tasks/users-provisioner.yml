@@ -5,7 +5,7 @@
     host: "{{ mariadb_provisioner_host }}"
     password: "{{ mariadb_provisioner.password }}"
     priv: >-
-      *.*:CREATE,CREATE USER/{{ mariadb_provisioner.database_prefix }}%.*:ALL,GRANT
+      *.*:CREATE,CREATE USER,GRANT/{{ mariadb_provisioner.database_prefix }}%.*:ALL,GRANT
     tls_requires:
       SSL: true
     login_unix_socket: "{{ mariadb_socket }}"
