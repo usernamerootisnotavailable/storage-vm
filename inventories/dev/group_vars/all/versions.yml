@@ -1,5 +1,5 @@
 ---
-# Component versions are environment data. Keep dev and prod aligned except
+# Component versions are environment data. Keep environments aligned except
 # during a documented staged rollout.
 postgresql_version: "18"
 mariadb_version: "11.8.10"

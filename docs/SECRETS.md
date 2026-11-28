@@ -2,38 +2,70 @@
 
 ## Model
 
-- Secrets are encrypted with [SOPS](https://getsops.io/) 3.12 or newer using age recipients.
-- Encrypted files are committed to git. Plaintext secret files are never committed.
+- Secrets and environment values are encrypted with [SOPS](https://getsops.io/)
+  3.12 or newer using age recipients.
+- Encrypted files are committed to git. Plaintext rendered files are never
+  committed.
 - Each environment has its own age recipient and private identity.
 - The development key must not decrypt production files, and vice versa.
 - Decryption happens on the controller. Managed hosts never receive an age key.
-- Ansible loads encrypted variables through the `community.sops.sops` vars plugin.
+- Ansible loads encrypted variables through the `community.sops.sops` vars
+  plugin.
+- The Proxmox API token and OpenTofu state passphrase live in a separate
+  OpenTofu-only file so Ansible never receives them.
 
 ## Repository layout
 
 ```text
-.sops.yaml                                      Creation rules and public recipients
-inventories/dev/group_vars/storage/secrets.sops.yml
-inventories/prod/group_vars/storage/secrets.sops.yml
+.sops.yaml
+inventories/dev/group_vars/all/environment.sops.yml
+inventories/dev/group_vars/all/environment.sops.yml.example
+inventories/prod/group_vars/all/environment.sops.yml
+inventories/prod/group_vars/all/environment.sops.yml.example
+tofu/dev.sops.yml
+tofu/dev.sops.yml.example
+tofu/prod.sops.yml
+tofu/prod.sops.yml.example
+inventories/ci/                                      plaintext synthetic values
 ```
 
-The plugin only loads files ending in `.sops.yml`, `.sops.yaml`, or `.sops.json`. An unencrypted file with one of those extensions causes an error.
+`environment.sops.yml` contains both the environment's non-secret values and
+its `secret_*` credentials. Keeping one encrypted file per environment makes
+the value set atomic and gives it one age recipient. The corresponding
+`.example` file is the committed template; `make generate` renders it and
+encrypts the result.
+
+`tofu/<env>.sops.yml` contains only the Proxmox endpoint/token and the state
+encryption passphrase. It is never loaded by Ansible.
+
+The plugin only loads files ending in `.sops.yml`, `.sops.yaml`, or `.sops.json`.
+An unencrypted file with one of those extensions causes an error. Templates use
+the `.example` suffix and are not loaded by the plugin.
 
 ## `.sops.yaml`
 
-The repository ships with `creation_rules: []` because no age recipients exist yet. Add one rule per environment:
+Add two rules per environment before running `make generate`: one for the
+Ansible environment file and one for the OpenTofu file.
 
 ```yaml
 creation_rules:
-  - path_regex: inventories/dev/.*\.sops\.ya?ml$
+  - path_regex: ^inventories/dev/.*\.sops\.ya?ml$
     age: age1devrecipient...
-  - path_regex: inventories/prod/.*\.sops\.ya?ml$
+  - path_regex: ^tofu/dev\.sops\.ya?ml$
+    age: age1devrecipient...
+  - path_regex: ^inventories/prod/.*\.sops\.ya?ml$
+    age: age1prodrecipient...
+  - path_regex: ^tofu/prod\.sops\.ya?ml$
     age: age1prodrecipient...
 ```
 
-Rules are evaluated in order; the first match wins. Paths are relative to `.sops.yaml`. The file must be named exactly `.sops.yaml`; SOPS does not auto-discover `.sops.yml`.
+Rules are evaluated in order; the first match wins. Paths are relative to
+`.sops.yaml`. The file must be named exactly `.sops.yaml`; SOPS does not
+auto-discover `.sops.yml`.
 
-Security review is required for any change to `.sops.yaml`. Adding a recipient grants that identity read access to every file matching the rule.
+Security review is required for any change to `.sops.yaml`. Adding a recipient
+grants that identity read access to every file matching the rule. Never add a
+private key.
 
 ## Key custody
 
@@ -46,13 +78,20 @@ age-keygen -o ~/.config/sops/age/prod.keys.txt
 chmod 600 ~/.config/sops/age/*.keys.txt
 ```
 
-The command prints the public recipient (`age1...`). Add only the public recipient to `.sops.yaml`.
+The command prints the public recipient (`age1...`). Add only the public
+recipient to `.sops.yaml`.
 
-- Never store private keys in the repository, an inventory, CI logs, or a managed host.
-- Never put both environment keys in the default `~/.config/sops/age/keys.txt`; use separate files selected by `SOPS_AGE_KEY_FILE`.
-- Back up each private key offline. Losing a production key means losing the ability to decrypt existing files unless the plaintext is recoverable elsewhere.
-- Production key access is restricted to operators and the protected GitHub `prod` environment.
-- Development keys may be shared among developers, but must still remain outside the repository.
+- Never store private keys in the repository, an inventory, CI logs, or a
+  managed host.
+- Never put both environment keys in the default `~/.config/sops/age/keys.txt`;
+  use separate files selected by `SOPS_AGE_KEY_FILE`.
+- Back up each private key offline. Losing a production key means losing the
+  ability to decrypt existing files unless the plaintext is recoverable
+  elsewhere.
+- Production key access is restricted to operators and the protected GitHub
+  `prod` environment.
+- Development keys may be shared among developers, but must still remain outside
+  the repository.
 
 Local use:
 
@@ -69,41 +108,50 @@ ansible-playbook -i inventories/prod/hosts.yml site.yml --check --diff
 
 Using the wrong key fails closed during decryption. This is intentional.
 
-## Creating secrets
+## Generating environment files
 
-1. Add the environment recipient to `.sops.yaml`.
-2. Run the bootstrap script:
+Run `make generate ENV=<dev|prod>`. The command:
 
-```bash
-./scripts/init-secrets.sh dev
-```
+1. Refuses to overwrite any existing encrypted output.
+2. Creates `~/.config/sops/age/<env>.keys.txt` when it does not exist.
+3. Prints the public recipient and requires a matching `.sops.yaml` rule.
+4. Renders the committed `*.example` templates.
+5. Replaces the `__GENERATE_HEX_*__` markers with random credentials.
+6. Encrypts the rendered file with SOPS and verifies that the generated age key
+   can decrypt it.
+7. Writes the encrypted output with mode `0600` and removes the plaintext
+   temporary file.
 
-The script:
+The first run may create the key and then fail because `.sops.yaml` has no
+matching rule. Add the printed public recipient to the correct rule and run the
+same command again.
 
-- Generates random values with `openssl`:
-  - PostgreSQL application password
-  - MariaDB application password
-  - Garage RPC secret and admin token
-  - Shared S3 access key and secret key
-  - Elasticsearch bootstrap password
-- Writes `secret_nginx_cloudflare_api_token` as a placeholder so the operator
-  must supply a scoped Cloudflare token before enabling Let's Encrypt.
-- Writes a temporary plaintext file with mode `0600`.
-- Encrypts it to `inventories/<env>/group_vars/storage/secrets.sops.yml`.
-- Removes the temporary file on exit.
-- Refuses to overwrite an existing secrets file.
-
-The script creates only the baseline `secret_postgresql_app_password` and
-`secret_mariadb_app_password`. Add secrets for additional PostgreSQL or MariaDB
-apps manually with `sops`.
-
-To edit an existing file:
+Preview without creating a key or writing files:
 
 ```bash
-sops inventories/dev/group_vars/storage/secrets.sops.yml
+make generate ENV=dev DRY_RUN=1
 ```
 
-SOPS opens a temporary decrypted file in the editor, re-encrypts on save, and removes the temporary file. Edit only on a trusted workstation.
+`scripts/init-secrets.sh` is a compatibility wrapper for `scripts/generate.sh`.
+Do not add a force flag: an existing environment is changed with `sops`, not by
+regenerating it.
+
+## Creating and editing values
+
+The generated file contains two kinds of placeholders:
+
+- `__GENERATE_HEX_8__` and `__GENERATE_HEX_32__` are replaced by `make generate`.
+- `<REPLACE_WITH_...>` values must be supplied by the operator.
+
+After generation:
+
+```bash
+sops inventories/dev/group_vars/all/environment.sops.yml
+sops tofu/dev.sops.yml
+```
+
+SOPS opens a temporary decrypted file in the editor, re-encrypts on save, and
+removes the temporary file. Edit only on a trusted workstation.
 
 Never run:
 
@@ -113,7 +161,8 @@ sops --decrypt file.sops.yml > plaintext.yml
 
 ## Variable naming
 
-Only secrets belong in `secrets.sops.yml`. Every value is prefixed with `secret_`:
+Only `secret_*` values are credentials. Environment values use the normal
+component prefixes. Both live in the same encrypted file.
 
 ```yaml
 secret_postgresql_app_password: "..."
@@ -124,16 +173,7 @@ secret_storage_s3_access_key: "..."
 secret_storage_s3_secret_key: "..."
 secret_elasticsearch_bootstrap_password: "..."
 secret_nginx_cloudflare_api_token: "..."
-```
 
-The baseline PostgreSQL secret is `secret_postgresql_app_password`. Additional
-apps use a distinct key such as `secret_postgresql_<name>_password`. The baseline
-MariaDB secret is `secret_mariadb_app_password`; additional MariaDB apps use
-`secret_mariadb_<name>_password`. Never reuse one password across applications.
-
-Map them to role variables in `group_vars/storage/main.yml`:
-
-```yaml
 postgresql_apps:
   - state: present
     name: app
@@ -142,29 +182,31 @@ postgresql_apps:
     databases:
       - appdb
     cidrs:
-      - 127.0.0.1/32
-mariadb_apps:
-  - state: present
-    name: app
-    user: app
-    password: "{{ secret_mariadb_app_password }}"
-    databases:
-      - appdb
-    cidrs:
-      - 127.0.0.1/32
-garage_rpc_secret: "{{ secret_garage_rpc_secret }}"
-garage_admin_token: "{{ secret_garage_admin_token }}"
-storage_s3_access_key: "{{ secret_storage_s3_access_key }}"
-storage_s3_secret_key: "{{ secret_storage_s3_secret_key }}"
-elasticsearch_bootstrap_password: "{{ secret_elasticsearch_bootstrap_password }}"
-nginx_cloudflare_api_token: "{{ secret_nginx_cloudflare_api_token }}"
+      - "<REPLACE_WITH_APP_CIDR>"
 ```
+
+The baseline PostgreSQL secret is `secret_postgresql_app_password`. Additional
+apps use a distinct key such as `secret_postgresql_<name>_password`. The baseline
+MariaDB secret is `secret_mariadb_app_password`; additional MariaDB apps use
+`secret_mariadb_<name>_password`. Never reuse one password across applications.
 
 Do not use `secret_*` names inside roles. Roles consume the mapped variables.
 
-Elasticsearch stores the bootstrap password and the shared S3 credentials in its keystore. Garage imports the shared S3 key through its admin API. Database passwords and S3 keys never appear in process arguments or configuration templates. Garage's RPC secret and admin token must be present in `/etc/garage.toml`; that file is mode `0640`, owned `root:garage`, and readable only by the service group.
+The OpenTofu-only file uses:
 
-NGINX's Cloudflare token is written to `/etc/letsencrypt/cloudflare.ini`, mode `0600`, owned `root`, with `no_log` and `diff: false`. The token should be scoped to the specific Cloudflare zone with Zone/Zone/Read and Zone/DNS/Edit. Do not use a global API key.
+```yaml
+proxmox_endpoint: "..."
+proxmox_api_token_id: "..."
+proxmox_api_token_secret: "..."
+tofu_state_passphrase: "..."
+```
+
+`proxmox_endpoint`, the token, and the state passphrase are never placed in the
+Ansible inventory.
+
+Because the Ansible file contains both values and credentials, the
+`register_values_as_secrets = True` setting also redacts non-secret values from
+task output. That is intentional defense in depth.
 
 ## Output protection
 
@@ -176,7 +218,8 @@ register_values_as_secrets = True
 handle_unencrypted_files = error
 ```
 
-`register_values_as_secrets` marks every value loaded from a SOPS file as secret and redacts it from Ansible output. This requires ansible-core 2.22 or newer.
+`register_values_as_secrets` marks every value loaded from a SOPS file as secret
+and redacts it from Ansible output. This requires ansible-core 2.22 or newer.
 
 Masking is defense in depth, not permission to print secrets:
 
@@ -188,11 +231,16 @@ Masking is defense in depth, not permission to print secrets:
 
 ## CI and GitHub Actions
 
-- Each GitHub Environment (`dev`, `prod`) stores its age private key as `SOPS_AGE_KEY`.
-- The production environment requires reviewers and restricts deployments to `main`.
-- Fork pull requests never receive environment secrets. Lint and Molecule must run without them.
-- Integration tests that need a secret generate an ephemeral value at runtime; they do not use production secrets.
-- Do not echo secrets, enable shell tracing around decryption, or upload decrypted artifacts.
+- Each GitHub Environment (`dev`, `prod`) may store its age private key as
+  `SOPS_AGE_KEY` for protected deployment jobs. The normal CI jobs do not need
+  it.
+- Lint, syntax, literal, Molecule, and OpenTofu validation jobs use
+  `inventories/ci`, which is plaintext and contains no real values.
+- Fork pull requests never receive environment secrets.
+- Integration tests generate ephemeral test credentials at runtime; they do not
+  use the committed SOPS files.
+- Do not echo secrets, enable shell tracing around decryption, or upload
+  decrypted artifacts.
 
 ## Rotation
 
@@ -203,7 +251,10 @@ Masking is defense in depth, not permission to print secrets:
 3. Verify the service accepts the new credential.
 4. Revoke the old credential at the source.
 
-For PostgreSQL, password changes are skipped per app by default to preserve idempotence. Set `rotate_password: true` on the affected `postgresql_apps` entry for the rotation run, then return it to `false`. Other apps keep `rotate_password: false`.
+For PostgreSQL, password changes are skipped per app by default to preserve
+idempotence. Set `rotate_password: true` on the affected `postgresql_apps` entry
+for the rotation run, then return it to `false`. Other apps keep
+`rotate_password: false`.
 
 MariaDB application accounts are updated by `ansible.mariadb.mariadb_user` when
 the password of a present `mariadb_apps` entry changes. Setting an app to
@@ -212,22 +263,28 @@ or drop the account.
 
 ### Rotate the Elasticsearch elastic password
 
-The bootstrap password only applies when the cluster is first initialized. To rotate it:
+The bootstrap password only applies when the cluster is first initialized. To
+rotate it:
 
-1. Use the Elasticsearch password API or `elasticsearch-reset-password` for the `elastic` user.
+1. Use the Elasticsearch password API or `elasticsearch-reset-password` for the
+   `elastic` user.
 2. Update `secret_elasticsearch_bootstrap_password` to the same value in SOPS.
 3. Verify authentication.
-4. Keep the keystore's `bootstrap.password` entry consistent for future recovery documentation.
+4. Keep the keystore's `bootstrap.password` entry consistent for future recovery
+   documentation.
 
 ### Rotate the Garage S3 key
 
 1. Generate a new 16-hex access key and 64-hex secret.
 2. Update the shared S3 secrets in SOPS.
-3. Apply the Elasticsearch role with `elasticsearch_rotate_s3_secrets: true`; this rewrites the keystore entries and restarts Elasticsearch. Return the setting to `false`.
+3. Apply the Elasticsearch role with `elasticsearch_rotate_s3_secrets: true`;
+   this rewrites the keystore entries and restarts Elasticsearch. Return the
+   setting to `false`.
 4. Verify the snapshot repository.
 5. Remove the old Garage key after verifying snapshots.
 
-Garage key IDs are immutable. If the access key ID changes, import the new key and grant it bucket permissions before removing the old one.
+Garage key IDs are immutable. If the access key ID changes, import the new key
+and grant it bucket permissions before removing the old one.
 
 ### Rotate the Garage RPC and admin secrets
 
@@ -243,6 +300,15 @@ Garage key IDs are immutable. If the access key ID changes, import the new key a
 3. Apply the NGINX role; this rewrites `/etc/letsencrypt/cloudflare.ini`.
 4. Run `certbot renew --dry-run` or wait for the renewal timer.
 5. Revoke the old token in Cloudflare.
+
+### Rotate the OpenTofu state passphrase
+
+1. Generate a new passphrase.
+2. Update `tofu_state_passphrase` in `tofu/<env>.sops.yml`.
+3. Re-encrypt the existing local state with the new passphrase using the
+   OpenTofu state encryption workflow.
+4. Verify a plan can read the state.
+5. Destroy the old passphrase backup only after the new one is verified.
 
 ### Rotate an age identity
 
@@ -262,20 +328,24 @@ Garage key IDs are immutable. If the access key ID changes, import the new key a
 4. Review git history, CI logs, and host logs for exposure.
 5. Document the incident and the recovery steps.
 
-An encrypted file in git history remains decryptable by anyone who retains the old private key. Removing a recipient does not rewrite history; rotate the underlying credentials.
+An encrypted file in git history remains decryptable by anyone who retains the
+old private key. Removing a recipient does not rewrite history; rotate the
+underlying credentials.
 
 ## Secret scanning
 
 - GitHub push protection and secret scanning are enabled.
 - CI runs `gitleaks` on every change.
-- Age private keys (`AGE-SECRET-KEY-1...`) and plaintext private key blocks are forbidden.
-- SOPS ciphertext (`ENC[AES256_GCM,...]`) is expected and must not be allowlisted as a plaintext exception.
+- Age private keys (`AGE-SECRET-KEY-1...`) and plaintext private key blocks are
+  forbidden.
+- SOPS ciphertext (`ENC[AES256_GCM,...]`) is expected and must not be allowlisted
+  as a plaintext exception.
 - Test fixtures must not contain values that resemble production credentials.
 
 ## Adding a new secret
 
-1. Add a `secret_*` key to each environment's SOPS file.
-2. Map it to a role variable in `main.yml`.
+1. Add the `secret_*` key to each environment's encrypted file.
+2. Map it to a role variable in the same encrypted file.
 3. Declare the role variable in `meta/argument_specs.yml` with `no_log: true`.
 4. Add `no_log` to tasks that use it.
 5. Document the secret and its rotation procedure in the component document.

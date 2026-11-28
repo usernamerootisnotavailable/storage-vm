@@ -74,13 +74,14 @@ If a rule is unclear, stop and ask. Do not invent a new convention silently.
 |---|---|
 | Safe role default | `roles/<role>/defaults/main.yml` |
 | Role interface validation | `roles/<role>/meta/argument_specs.yml` |
-| Environment-wide non-secret data | `inventories/<env>/group_vars/all/main.yml` |
-| Service configuration and sizing | `inventories/<env>/group_vars/storage/main.yml` |
-| Component versions | `inventories/<env>/group_vars/storage/versions.yml` |
-| Secrets (encrypted) | `inventories/<env>/group_vars/storage/secrets.sops.yml` |
+| Environment metadata and capability flags | `inventories/<env>/group_vars/all/main.yml` |
+| Environment values and credentials (encrypted) | `inventories/<env>/group_vars/all/environment.sops.yml` |
+| Component versions | `inventories/<env>/group_vars/all/versions.yml` |
 | Host hardware exception | `inventories/<env>/host_vars/<host>/main.yml` |
-| Connection details | `inventories/<env>/hosts.yml` |
-| Secret-to-variable mapping | `inventories/<env>/group_vars/storage/main.yml` |
+| Connection details (encrypted) | `inventories/<env>/group_vars/all/environment.sops.yml` |
+| Secret-to-variable mapping | `inventories/<env>/group_vars/all/environment.sops.yml` |
+| OpenTofu-only credentials | `tofu/<env>.sops.yml` |
+| Synthetic CI values (plaintext) | `inventories/ci/` |
 
 Never duplicate a value across layers. Set only what differs from the role default.
 
@@ -116,13 +117,17 @@ postgresql_password: "{{ hostvars['db01']['mariadb_password'] }}"
 Run the checks that apply to the change; do not report success for checks you did not run.
 
 ```bash
-make lint          # yamllint, ansible-lint, policy checks
-make syntax        # ansible-playbook --syntax-check
-make molecule      # role converge, verify, idempotence (requires Docker)
-make integration   # full playbook on the dev container (requires Docker)
+make lint INVENTORY=inventories/ci/hosts.yml       # yamllint, ansible-lint, policy, literals
+make syntax INVENTORY=inventories/ci/hosts.yml     # ansible-playbook --syntax-check
+make literals                                      # environment-literal scan
+make molecule                                      # role converge, verify, idempotence (requires Docker)
+make integration                                   # full playbook on the dev container (requires Docker)
 ```
 
-At minimum, every change must pass `make lint` and `make syntax`. Changes to a role must also pass that role's Molecule scenario. Changes to `site.yml` or inventory must pass integration.
+At minimum, every change must pass `make lint` and `make syntax` with
+`INVENTORY=inventories/ci/hosts.yml`. Changes to a role must also pass that
+role's Molecule scenario. Changes to `site.yml` or inventory must pass
+integration.
 
 ## Definition of done
 

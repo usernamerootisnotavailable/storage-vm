@@ -1,16 +1,20 @@
 ---
 # SOPS creation rules.
 #
-# This repository intentionally ships without age recipients. Add one rule per
-# environment after generating or receiving the environment's public age key.
-# Never add a private key to this file.
+# `make generate ENV=<dev|prod>` requires a matching rule before it writes an
+# encrypted file. Add one rule per environment for the Ansible environment file
+# and one for the OpenTofu-only secrets file. Never add a private key here.
 #
 # Example:
 #
 # creation_rules:
-#   - path_regex: inventories/dev/.*\.sops\.ya?ml$
+#   - path_regex: ^inventories/dev/.*\.sops\.ya?ml$
 #     age: age1...
-#   - path_regex: inventories/prod/.*\.sops\.ya?ml$
+#   - path_regex: ^tofu/dev\.sops\.ya?ml$
+#     age: age1...
+#   - path_regex: ^inventories/prod/.*\.sops\.ya?ml$
+#     age: age1...
+#   - path_regex: ^tofu/prod\.sops\.ya?ml$
 #     age: age1...
 #
 # The first matching rule wins. Paths are relative to this file.

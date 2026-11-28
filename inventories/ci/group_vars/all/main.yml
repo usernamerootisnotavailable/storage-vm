@@ -1,0 +1,11 @@
+---
+# Synthetic CI metadata. CI is not a deployment environment.
+deployment_environment: ci
+
+# The CI container cannot manage the host clock, nftables, SELinux, or kernel
+# sysctl values. These flags are test-harness capabilities, not environment
+# branches.
+common_manage_time: false
+common_firewall_enabled: false
+common_require_selinux: false
+elasticsearch_manage_sysctl: false

@@ -35,9 +35,9 @@ The server is privately accessible only.
 Required:
 
 ```yaml
-nginx_letsencrypt_email: "ops@example.com"
+nginx_letsencrypt_email: "ops@example.invalid"
 nginx_cloudflare_api_token: "{{ secret_nginx_cloudflare_api_token }}"
-nginx_base_domain: "example.com"
+nginx_base_domain: "storage.example.invalid"
 ```
 
 The Cloudflare API token should be scoped to the zone and allow:

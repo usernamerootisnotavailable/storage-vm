@@ -27,6 +27,12 @@ common_firewall_allowed_ssh_cidrs: []
 
 common_require_selinux: true
 
+# The image-provided bootstrap account. Cloud-init owns its key and the image
+# owns its passwordless sudo rule. The role verifies this account remains usable
+# and refuses to manage it as a regular administrator.
+common_automation_user: ansible
+common_verify_automation_key: true
+
 common_admin_users: []
 
 common_ssh_service_name: sshd
@@ -34,7 +40,7 @@ common_ssh_config_file: /etc/ssh/sshd_config.d/99-storage-host.conf
 common_ssh_permit_root_login: "no"
 common_ssh_password_authentication: "no"
 common_ssh_allow_users:
-  - ansible
+  - "{{ common_automation_user }}"
 common_ssh_max_auth_tries: 3
 common_ssh_login_grace_time: 30
 common_ssh_client_alive_interval: 300

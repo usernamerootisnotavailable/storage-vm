@@ -22,7 +22,7 @@ For production, set:
 ```yaml
 common_firewall_enabled: true
 common_firewall_allowed_ssh_cidrs:
-  - 10.20.0.0/16
+  - 192.0.2.0/24
 common_ssh_allow_users:
   - ansible
 ```
@@ -40,6 +40,17 @@ The role refuses to configure firewalld with an empty SSH CIDR list.
 
 ## Notes
 
-- `common_manage_time`, `common_firewall_enabled`, and `common_require_selinux` are capability flags. The first two are false and the last is false only in the Docker development harness, where the host kernel controls those facilities.
+- `common_automation_user` defaults to the image-managed `ansible` account. The
+  role verifies the account exists with a login shell, has an authorized key,
+  and still has passwordless sudo. It refuses to manage that account through
+  `common_admin_users`.
+- `common_verify_automation_key` defaults to true. Service-role Molecule
+  scenarios set it to false because their container is not provisioned by
+  cloud-init; the `common` scenario creates an ephemeral test key instead.
+- `common_manage_time`, `common_firewall_enabled`, and
+  `common_require_selinux` are capability flags. They are disabled only in the
+  Docker development/CI harness, where the host kernel controls those
+  facilities.
 - SELinux is never set permissive or disabled by this role. In production, `common_require_selinux` defaults to true and fails the run if SELinux is disabled.
-- The automation user must exist before SSH hardening is applied. It is provisioned outside this role.
+- The automation user must exist before SSH hardening is applied. It is
+  provisioned by the base image and cloud-init, outside this role.

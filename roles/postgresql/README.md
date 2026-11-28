@@ -35,7 +35,7 @@ postgresql_apps:
     rotate_password: false
 ```
 
-The version is pinned in `inventories/<env>/group_vars/storage/versions.yml`.
+The version is pinned in `inventories/<env>/group_vars/all/versions.yml`.
 Every app password must come from an encrypted SOPS file and be at least 16
 characters.
 

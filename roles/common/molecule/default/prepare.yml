@@ -1,6 +1,7 @@
 ---
 - name: Prepare
   hosts: all
+  become: true
   gather_facts: true
   tasks:
     - name: Verify the test platform
@@ -10,3 +11,16 @@
           - ansible_distribution_major_version | int == 10
         fail_msg: Molecule must run on AlmaLinux 10.
         quiet: true
+
+    - name: Create an ephemeral automation test key
+      community.crypto.openssh_keypair:
+        path: /tmp/molecule-ansible-key
+        type: ed25519
+        comment: molecule-common
+      register: common_molecule_key
+
+    - name: Install the ephemeral automation public key
+      ansible.posix.authorized_key:
+        user: ansible
+        key: "{{ common_molecule_key.public_key }}"
+        exclusive: false

@@ -31,3 +31,5 @@ ignore: |
   .molecule/
   .venv/
   collections/
+  **/*.sops.yml
+  **/*.sops.yaml

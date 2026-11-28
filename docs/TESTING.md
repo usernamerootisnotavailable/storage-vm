@@ -18,15 +18,21 @@ CI is the authoritative test environment. A local pass is necessary but not suff
 ## Commands
 
 ```bash
-make lint          # yamllint, ansible-lint, policy checks
-make syntax        # syntax-check every playbook
-make test-image    # build the AlmaLinux 10 systemd test image
-make molecule      # Molecule for all six roles
-make integration   # full site.yml on the dev container, twice
-make test          # lint + syntax + molecule
+make lint INVENTORY=inventories/ci/hosts.yml   # yamllint, ansible-lint, policy, literals
+make syntax INVENTORY=inventories/ci/hosts.yml # syntax-check every playbook
+make check INVENTORY=inventories/ci/hosts.yml  # lint + syntax
+make literals                                  # environment-literal scan
+make generate ENV=dev DRY_RUN=1                # preview environment generation
+make test-image                                # build the AlmaLinux 10 systemd test image
+make molecule                                  # Molecule for all six roles
+make integration                               # full site.yml on the CI inventory
+make test INVENTORY=inventories/ci/hosts.yml   # check + molecule
 ```
 
 Run from the repository root unless a target says otherwise. `ansible.cfg` and `ANSIBLE_COLLECTIONS_PATH` make the pinned collections available from role directories.
+
+The check targets have no default inventory. Pass `INVENTORY` explicitly. CI uses
+`inventories/ci`, a plaintext synthetic inventory; it contains no real values.
 
 ## AlmaLinux 10 test image
 
@@ -78,17 +84,22 @@ Molecule runs from `roles/<role>`, so the relative `roles_path` in
 `ansible.cfg` would otherwise resolve inside the role directory and fail the
 syntax stage before the container is created.
 
-The scenarios disable only container-incompatible capabilities:
+The scenarios disable only test-harness capabilities:
 
 ```yaml
 common_manage_time: false
 common_firewall_enabled: false
 common_require_selinux: false
+common_verify_automation_key: false
 postgresql_manage_firewall: false
 mariadb_manage_firewall: false
 elasticsearch_manage_firewall: false
 elasticsearch_manage_sysctl: false
 ```
+
+The `common` scenario creates an ephemeral authorized key and keeps the key
+verification enabled. The service-role scenarios disable only that key check
+because their container is not provisioned by cloud-init.
 
 SELinux tasks detect `getenforce` and skip when the container reports `Disabled`. This branch is not exercised in CI.
 
@@ -142,18 +153,20 @@ IPv4 network/netmask hosts; broader IPv6 networks fail by design.
 
 ## Full-stack integration
 
-The integration target starts the development container, generates ephemeral credentials for every service, applies `site.yml`, and runs verification. It logs in as each present development PostgreSQL app over `127.0.0.1` with TLS and asserts the database, user, and SSL state. It also logs in as each present development MariaDB app over `127.0.0.1` with the MariaDB CA, asserting `DATABASE()`, `CURRENT_USER()`, and a non-empty `Ssl_cipher`. The MariaDB proof runs only when present `mariadb_apps` entries exist. It then creates a test index, creates and reads an Elasticsearch snapshot through the shared read/write Garage S3 key, and always deletes the snapshot and index. Finally it applies `site.yml` again and asserts `changed=0`. Verification also includes a Garage-backed snapshot repository check and NGINX TLS routing to both Elasticsearch and Garage. Development NGINX uses generated certificates, so integration never contacts Let's Encrypt or Cloudflare.
+The integration target starts the development container, generates ephemeral credentials for every service, applies `site.yml` with `inventories/ci`, and runs verification. The CI inventory uses loopback for the container connection and reserved documentation values for everything else. It logs in as each present CI PostgreSQL app over loopback with TLS and asserts the database, user, and SSL state. It also logs in as each present CI MariaDB app over loopback with the MariaDB CA, asserting `DATABASE()`, `CURRENT_USER()`, and a non-empty `Ssl_cipher`. The MariaDB proof runs only when present `mariadb_apps` entries exist. It then creates a test index, creates and reads an Elasticsearch snapshot through the shared read/write Garage S3 key, and always deletes the snapshot and index. Finally it applies `site.yml` again and asserts `changed=0`. Verification also includes a Garage-backed snapshot repository check and NGINX TLS routing to both Elasticsearch and Garage. CI NGINX uses generated certificates, so integration never contacts Let's Encrypt or Cloudflare.
 
-The database login proofs run against development loopback addresses with
-generated TLS material. See [Database applications](DATABASES.md) for the
-application verification policy and ownership boundaries. These are development
-proofs and do not demonstrate production application connectivity.
+The database login proofs run against loopback addresses with generated TLS
+material. See [Database applications](DATABASES.md) for the application
+verification policy and ownership boundaries. These are CI proofs and do not
+demonstrate production application connectivity.
 
 ```bash
 make integration
 ```
 
-The integration job must not use production secrets. It supplies test credentials through an ephemeral extra-vars file and never touches SOPS-encrypted production data.
+The integration job must not use production secrets or the committed SOPS
+files. It supplies test credentials through an ephemeral extra-vars file and
+uses the plaintext CI inventory.
 
 The Docker host must provide `vm.max_map_count=262144`; the integration and `dev-up` scripts attempt to raise it when passwordless sudo is available.
 
@@ -161,10 +174,10 @@ The Docker host must provide `vm.max_map_count=262144`; the integration and `dev
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
 
-1. **lint** — `yamllint`, `ansible-lint`, `shellcheck`, policy checks, syntax check
+1. **lint** — `yamllint`, `ansible-lint`, `shellcheck`, policy checks, literal checks, environment-generation dry run, syntax check with `INVENTORY=inventories/ci/hosts.yml`
 2. **secret-scan** — `gitleaks` with a pinned binary
 3. **molecule** — matrix over `common`, `postgresql`, `mariadb`, `garage`, `elasticsearch`, and `nginx`
-4. **integration** — full `site.yml` on the AlmaLinux 10 container, including the Garage S3 snapshot repository, an Elasticsearch snapshot create/read/delete proof with the shared read/write key, and NGINX TLS routing
+4. **integration** — full `site.yml` on the AlmaLinux 10 container using the synthetic CI inventory, including the Garage S3 snapshot repository, an Elasticsearch snapshot create/read/delete proof with the shared read/write key, and NGINX TLS routing
 
 Requirements:
 
@@ -221,8 +234,9 @@ Before a production change that touches these areas:
 
 ## Definition of done
 
-- `make lint` passes.
-- `make syntax` passes.
+- `make lint INVENTORY=inventories/ci/hosts.yml` passes.
+- `make syntax INVENTORY=inventories/ci/hosts.yml` passes.
+- `make literals` passes.
 - The affected role's Molecule scenario passes.
 - Integration passes for changes to `site.yml` or inventory.
 - The second run reports `changed=0`.

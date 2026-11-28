@@ -1,0 +1,58 @@
+# Literal allowlist for scripts/check-literals.py.
+#
+# Entries are exact categories:
+#   network <CIDR>   allow a documentation or loopback network
+#   domain <suffix>  allow a vendor or reserved domain suffix
+#   token <literal>  allow an exact non-address token
+#
+# Do not add private ranges, public addresses, or real domains here. The check
+# is intentionally fail-closed; add a reserved documentation value instead.
+
+# Loopback, unspecified, and link-local defaults used by roles and tests.
+network 127.0.0.0/8
+network ::1/128
+network 0.0.0.0/32
+network ::/128
+network fe80::/10
+
+# RFC 5737 and RFC 3849 documentation ranges.
+network 192.0.2.0/24
+network 198.51.100.0/24
+network 203.0.113.0/24
+network 2001:db8::/32
+
+# Netmask literals used only in documentation examples.
+network 255.255.255.0/32
+network 255.255.0.0/32
+network 255.0.0.0/32
+
+# Default-route constants are forbidden values, not environment values.
+token 0.0.0.0/0
+token ::/0
+
+# Reserved documentation and test suffixes.
+domain invalid
+domain example
+domain test
+
+# Vendor and project domains referenced by documentation and pinned sources.
+domain almalinux.org
+domain cloudflare.com
+domain deuxfleurs.fr
+domain elastic.co
+domain fedoraproject.org
+domain getsops.io
+domain github.com
+domain githubusercontent.com
+domain hashicorp.com
+domain letsencrypt.org
+domain mariadb.org
+domain ntp.org
+domain opentofu.org
+domain postgresql.org
+domain proxmox.com
+domain pypi.org
+domain python.org
+domain systemd.io
+domain terraform.io
+domain tflint.dev

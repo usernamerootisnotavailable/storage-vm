@@ -26,6 +26,7 @@ provisioner:
         common_manage_time: false
         common_firewall_enabled: false
         common_require_selinux: false
+        common_verify_automation_key: false
         elasticsearch_manage_firewall: false
         elasticsearch_allowed_cidrs: []
         elasticsearch_manage_sysctl: false

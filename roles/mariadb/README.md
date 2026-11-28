@@ -32,7 +32,7 @@ mariadb_apps:
       - 127.0.0.1/32
 ```
 
-The version is pinned in `inventories/<env>/group_vars/storage/versions.yml`.
+The version is pinned in `inventories/<env>/group_vars/all/versions.yml`.
 Every app password must come from an encrypted SOPS file and be at least 16
 characters. The baseline key is `secret_mariadb_app_password`; additional apps
 use `secret_mariadb_<name>_password`.
@@ -66,8 +66,7 @@ Production should use `mariadb_tls_mode: provided` with CA-issued certificates.
 `mariadb_host_from_cidr` is a role-local filter:
 
 - IPv4 `/32` becomes the exact address.
-- Broader IPv4 CIDRs become `network/netmask`, for example
-  `10.20.0.0/16` becomes `10.20.0.0/255.255.0.0`.
+- Broader IPv4 CIDRs become the equivalent `network/netmask` account host.
 - IPv6 `/128` becomes the exact address.
 - Broader IPv6 CIDRs fail because MariaDB account netmask syntax is IPv4-only.
 

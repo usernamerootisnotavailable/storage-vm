@@ -89,7 +89,7 @@ postgresql_apps:
     databases:
       - exampledb
     cidrs:
-      - 10.20.0.0/16
+      - 192.0.2.0/24
     extensions: []
     connection_limit: -1
     rotate_password: false
@@ -131,7 +131,7 @@ mariadb_apps:
     databases:
       - exampledb
     cidrs:
-      - 10.20.0.0/16
+      - 192.0.2.0/24
 ```
 
 Each `mariadb_apps` entry has these fields. The full schema is in
@@ -150,8 +150,7 @@ MariaDB derives one account host per CIDR:
 
 - IPv4 `/32` becomes an exact address, for example `127.0.0.1/32` becomes
   `127.0.0.1`.
-- A broader IPv4 CIDR becomes `network/netmask`, for example `10.20.0.0/16`
-  becomes `10.20.0.0/255.255.0.0`.
+- A broader IPv4 CIDR becomes the equivalent `network/netmask` account host.
 - IPv6 `/128` becomes an exact address.
 - Broader IPv6 CIDRs are rejected because MariaDB netmask syntax is IPv4-only.
   Use exact IPv6 `/128` addresses or IPv4 networks.
@@ -277,15 +276,14 @@ secret_mariadb_<name>_password
 
 Rules:
 
-- Add the key with `sops inventories/<env>/group_vars/storage/secrets.sops.yml`.
+- Add the key with `sops inventories/<env>/group_vars/all/environment.sops.yml`.
   Never write a plaintext password to inventory, a temporary repository file, a
   ticket, a commit message, a log, or chat.
-- Map the key to the entry's `password` in
-  `inventories/<env>/group_vars/storage/main.yml`.
+- Map the key to the entry's `password` in the same encrypted environment file.
 - Never reuse a password across applications or engines.
 - Never delete a secret while an entry still references it. This includes an
   `absent` entry.
-- `scripts/init-secrets.sh` creates only the two baseline application passwords.
+- `make generate ENV=<env>` creates only the baseline application passwords.
   It does not create secrets for additional apps. Add those manually with
   `sops` as described in [Secrets](SECRETS.md).
 - Generate test passwords at runtime and never commit or reuse them.

@@ -58,16 +58,18 @@ These decisions require an explicit architecture review to change.
 ## Repository layout
 
 ```text
-ansible.cfg                 Controller behavior and default development inventory
+ansible.cfg                 Controller behavior; no default inventory
 requirements.yml            Pinned Ansible collections
 requirements-dev.txt        Pinned lint and test tooling
 site.yml                    Full host convergence
 playbooks/                  Per-role and verification playbooks
 roles/                      common, postgresql, mariadb, garage, elasticsearch, nginx
-inventories/dev/            Development inventory and values
-inventories/prod/           Production inventory and values
+inventories/dev/            Development inventory and encrypted environment file
+inventories/prod/           Production inventory and encrypted environment file
+inventories/ci/             Synthetic plaintext inventory for CI checks
+tofu/                       OpenTofu root module and environment-only credentials
 docker/dev/                 AlmaLinux 10 systemd development image
-scripts/                    Developer, policy, and integration tooling
+scripts/                    Developer, policy, literal, and integration tooling
 docs/                       Normative project documentation
 ```
 
@@ -146,6 +148,8 @@ Garage imports the key and creates the bucket. Elasticsearch stores the key in i
 - AlmaLinux 10 verification and package installation through `dnf`
 - Timezone and optional chrony management
 - Admin user creation and optional SSH keys
+- Verification that the image-managed `ansible` account, its cloud-init key, and
+  its passwordless sudo rule remain intact
 - SSH hardening through `/etc/ssh/sshd_config.d/99-storage-host.conf`
 - firewalld with explicit SSH source CIDRs
 - systemd-journald persistent logging

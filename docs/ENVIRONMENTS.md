@@ -14,7 +14,9 @@ The environment is selected only by:
 - The inventory directory passed with `-i`
 - The SOPS age key selected by `SOPS_AGE_KEY_FILE`
 
-`ansible.cfg` defaults to the development inventory so an accidental plain `ansible-playbook site.yml` cannot reach production. Production always requires an explicit `-i inventories/prod/hosts.yml` and the production age key.
+`ansible.cfg` has no default inventory. Every command must pass `-i` or set
+`INVENTORY` for the Makefile check targets. Production always requires an
+explicit production inventory and the production age key.
 
 ## Inventory layout
 
@@ -22,31 +24,59 @@ The environment is selected only by:
 inventories/dev/
   hosts.yml
   group_vars/
-    all/main.yml
-    storage/
+    all/
       main.yml
       versions.yml
-      secrets.sops.yml
+      environment.sops.yml
+      environment.sops.yml.example
   host_vars/
     storage01/main.yml
 
 inventories/prod/
   hosts.yml
   group_vars/
-    all/main.yml
-    storage/
+    all/
       main.yml
       versions.yml
-      secrets.sops.yml
+      environment.sops.yml
+      environment.sops.yml.example
+  host_vars/
+    storage01/main.yml
+
+inventories/ci/
+  hosts.yml
+  group_vars/
+    all/
+      main.yml
+      versions.yml
+      environment.yml
   host_vars/
     storage01/main.yml
 ```
 
-Both inventories define the same `storage` group and the same logical host `storage01`. Only `ansible_host`, connection details, IP addresses, CIDRs, sizing, certificate source, backup targets, and credentials differ.
+Both deployment inventories define the same `storage` group and the same
+logical host `storage01`. `hosts.yml` contains only groups and host names.
+Connection details, addresses, CIDRs, domains, sizing, endpoints, backup
+settings, public keys, and credentials live in the encrypted
+`group_vars/all/environment.sops.yml`.
+
+`environment.sops.yml.example` is the committed plaintext template. Run
+`make generate ENV=<dev|prod>` to create the encrypted file, then edit it with
+`sops`. The encrypted output is committed; the rendered plaintext is never
+committed.
+
+`inventories/ci` is a synthetic, plaintext test inventory. It is not a
+deployment environment. It uses loopback for the container connection and
+reserved documentation values for everything else. It exists so CI can run
+lint, syntax, and integration checks without an age key.
+
+Only `ansible_host`, `ansible_port`, `ansible_user`, SSH key paths, addresses,
+CIDRs, domains, sizing, certificate sources, backup targets, and credentials
+differ between environments.
 
 ## Development transport
 
-The development host is a disposable AlmaLinux 10 systemd container built from `docker/dev/`. It exposes SSH on `127.0.0.1:2222`, using a project-local key under `.dev/ssh/` and a project-local `known_hosts`.
+The development host is a disposable AlmaLinux 10 systemd container built from `docker/dev/`. Its encrypted environment file points SSH at the project-local key under `.dev/ssh/` and the project-local `known_hosts`.
 
 The container is a test harness, not a production topology. It cannot validate:
 
@@ -94,6 +124,8 @@ They must never be used to bypass a failing security task in production. Any cha
 
 ## Secret selection
 
+Each environment has its own age key and encrypted environment file:
+
 ```bash
 # Development
 export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/dev.keys.txt"
@@ -104,7 +136,9 @@ export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/prod.keys.txt"
 ansible-playbook -i inventories/prod/hosts.yml site.yml
 ```
 
-The wrong key fails during decryption. Do not copy production secrets into the development environment.
+The wrong key fails during decryption. Do not copy production secrets into the
+development environment. Create the files with `make generate ENV=<dev|prod>`
+and edit only the encrypted output with `sops`.
 
 ## Promotion
 
@@ -113,7 +147,9 @@ Promotion is by commit SHA, not by copying files between environments:
 1. Merge to `main`.
 2. Deploy the same SHA to `dev`.
 3. Run `playbooks/verify.yml` and the service-specific checks.
-4. Compare non-secret variable values in `dev` and `prod`. Differences must be on the allowed list.
+4. Compare the plaintext versions and capability flags. If authorized, decrypt
+   both environment files to compare non-secret values; never print or store the
+   decrypted output.
 5. Ensure the production SSH and NGINX HTTPS CIDRs include the operator and the automation source; never use public CIDRs for NGINX.
 6. If versions differ, record the staged rollout and its rollback point.
 7. Deploy the same SHA to `prod` with approval.
@@ -142,9 +178,10 @@ Manual changes on production hosts are forbidden. If an emergency change is requ
 
 An additional environment requires an architecture review. If approved:
 
-1. Copy the inventory structure, not the secrets.
-2. Create a new age recipient and SOPS file.
-3. Add a `.sops.yaml` rule for the new path.
+1. Copy the inventory structure and add the new `environment.sops.yml.example`.
+2. Extend `scripts/generate.sh` for the new environment, create a new age
+   recipient, and run the generation flow.
+3. Add the matching `.sops.yaml` rules for the inventory and OpenTofu files.
 4. Add the host to DNS and the deployment pipeline.
 5. Add the environment to CI/CD approval rules.
 6. Keep the same group and logical host names.

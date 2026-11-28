@@ -98,6 +98,22 @@ grep -q '^register_values_as_secrets = True' ansible.cfg || fail "SOPS secret ma
 if grep -q '^log_path' ansible.cfg; then
   fail "log_path is forbidden because it can retain sensitive output"
 fi
+if grep -qE '^inventory[[:space:]]*=' ansible.cfg; then
+  fail "ansible.cfg must not define a default inventory"
+fi
+if grep -qE '^INVENTORY[[:space:]]*\?=' Makefile; then
+  fail "Makefile must not define a default INVENTORY"
+fi
+
+# Every environment must have committed generation templates. The encrypted
+# outputs are produced by a human with `make generate` and are not present in a
+# clean checkout.
+for environment in dev prod; do
+  [[ -f "inventories/${environment}/group_vars/all/environment.sops.yml.example" ]] || \
+    fail "missing inventories/${environment}/group_vars/all/environment.sops.yml.example"
+  [[ -f "tofu/${environment}.sops.yml.example" ]] || \
+    fail "missing tofu/${environment}.sops.yml.example"
+done
 
 # Inventory parity, dependency pinning, and version parity.
 python3 - <<'PY'
@@ -134,13 +150,19 @@ def versions(path):
 
 dev_inventory = inventory("inventories/dev/hosts.yml")
 prod_inventory = inventory("inventories/prod/hosts.yml")
+ci_inventory = inventory("inventories/ci/hosts.yml")
 if dev_inventory != prod_inventory:
     sys.exit("dev and prod inventories must expose the same groups and hosts")
+if dev_inventory != ci_inventory:
+    sys.exit("the CI inventory must expose the same groups and hosts as dev and prod")
 
-dev_versions = versions("inventories/dev/group_vars/storage/versions.yml")
-prod_versions = versions("inventories/prod/group_vars/storage/versions.yml")
+dev_versions = versions("inventories/dev/group_vars/all/versions.yml")
+prod_versions = versions("inventories/prod/group_vars/all/versions.yml")
+ci_versions = versions("inventories/ci/group_vars/all/versions.yml")
 if dev_versions != prod_versions:
     sys.exit("dev and prod component versions differ; use a documented staged rollout")
+if dev_versions != ci_versions:
+    sys.exit("the CI component versions differ from dev and prod")
 
 for collection in requirements("requirements.yml").get("collections", []):
     if not collection.get("version"):

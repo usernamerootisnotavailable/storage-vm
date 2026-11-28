@@ -1,6 +1,6 @@
 ---
-# Component versions are environment data. Keep dev and prod aligned except
-# during a documented staged rollout.
+# Component versions are environment data. CI must exercise the same pins as
+# the deployment environments.
 postgresql_version: "18"
 mariadb_version: "11.8.10"
 garage_version: "2.5.0"

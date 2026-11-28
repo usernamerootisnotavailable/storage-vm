@@ -7,31 +7,35 @@ ANSIBLE_GALAXY ?= $(VENV)/bin/ansible-galaxy
 ANSIBLE_LINT ?= $(VENV)/bin/ansible-lint
 YAMLLINT ?= $(VENV)/bin/yamllint
 MOLECULE ?= $(VENV)/bin/molecule
-INVENTORY ?= inventories/dev/hosts.yml
+ENV ?=
+DRY_RUN ?=
 COLLECTIONS := $(CURDIR)/collections
 
 export ANSIBLE_CONFIG := $(CURDIR)/ansible.cfg
 export ANSIBLE_COLLECTIONS_PATH := $(COLLECTIONS)
 export PATH := $(VENV)/bin:$(PATH)
 
-.PHONY: help deps lint syntax sysctl test-image molecule dev-up dev-down deploy-dev-check deploy-dev verify integration secrets-dev secrets-prod test clean
+.PHONY: help deps lint syntax check literals generate sysctl test-image molecule dev-up dev-down deploy-dev-check deploy-dev verify integration secrets-dev secrets-prod test clean
 
 help:
 	@echo "Storage Host targets:"
 	@echo "  make deps               Create the venv and install pinned dependencies"
-	@echo "  make lint               yamllint, ansible-lint, and policy checks"
-	@echo "  make syntax             Syntax-check all playbooks"
+	@echo "  make generate ENV=dev|prod [DRY_RUN=1]  Create the encrypted environment files"
+	@echo "  make lint INVENTORY=...  yamllint, ansible-lint, policy, and literal checks"
+	@echo "  make syntax INVENTORY=...  Syntax-check all playbooks"
+	@echo "  make check INVENTORY=...  Lint and syntax checks"
+	@echo "  make literals           Check tracked files for environment literals"
 	@echo "  make test-image         Build the AlmaLinux 10 systemd test image"
-	@echo "  make molecule           Run both Molecule scenarios (requires Docker)"
+	@echo "  make molecule           Run the Molecule scenarios (requires Docker)"
 	@echo "  make dev-up             Start the development container"
 	@echo "  make dev-down           Stop the development container"
-	@echo "  make secrets-dev        Create the encrypted development secrets file"
-	@echo "  make secrets-prod       Create the encrypted production secrets file"
+	@echo "  make secrets-dev        Create the encrypted development files"
+	@echo "  make secrets-prod       Create the encrypted production files"
 	@echo "  make deploy-dev-check   Check mode against development"
 	@echo "  make deploy-dev         Apply to development"
 	@echo "  make verify             Verify development"
 	@echo "  make integration        Full apply, verify, and idempotence check"
-	@echo "  make test               lint, syntax, and Molecule"
+	@echo "  make test               check plus Molecule"
 
 $(VENV)/bin/ansible:
 	$(PYTHON) -m venv $(VENV)
@@ -42,15 +46,27 @@ deps: $(VENV)/bin/ansible
 	$(ANSIBLE_GALAXY) collection install -r requirements.yml -p ./collections --force
 
 lint: deps
+	@test -n "$(INVENTORY)" || { echo "Set INVENTORY=path/to/hosts.yml" >&2; exit 2; }
 	$(YAMLLINT) .
-	$(ANSIBLE_LINT)
+	ANSIBLE_INVENTORY="$(INVENTORY)" $(ANSIBLE_LINT)
 	./scripts/check-policy.sh
+	./scripts/check-literals.sh
 
 syntax: deps
+	@test -n "$(INVENTORY)" || { echo "Set INVENTORY=path/to/hosts.yml" >&2; exit 2; }
 	@for playbook in site.yml playbooks/*.yml; do \
 		echo "Checking $$playbook"; \
-		$(ANSIBLE_PLAYBOOK) -i $(INVENTORY) "$$playbook" --syntax-check; \
+		$(ANSIBLE_PLAYBOOK) -i "$(INVENTORY)" "$$playbook" --syntax-check; \
 	done
+
+check: lint syntax
+
+literals:
+	./scripts/check-literals.sh
+
+generate:
+	@test -n "$(ENV)" || { echo "Usage: make generate ENV=dev|prod [DRY_RUN=1]" >&2; exit 2; }
+	./scripts/generate.sh "$(ENV)" $(if $(filter 1 true yes,$(DRY_RUN)),--dry-run,)
 
 sysctl:
 	@current=$$(sysctl -n vm.max_map_count 2>/dev/null || echo 0); \
@@ -92,12 +108,12 @@ integration: deps
 	ANSIBLE_PLAYBOOK=$(ANSIBLE_PLAYBOOK) ./scripts/integration-test.sh
 
 secrets-dev:
-	./scripts/init-secrets.sh dev
+	./scripts/generate.sh dev $(if $(filter 1 true yes,$(DRY_RUN)),--dry-run,)
 
 secrets-prod:
-	./scripts/init-secrets.sh prod
+	./scripts/generate.sh prod $(if $(filter 1 true yes,$(DRY_RUN)),--dry-run,)
 
-test: lint syntax molecule
+test: check molecule
 
 clean:
 	rm -rf .cache .molecule

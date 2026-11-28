@@ -22,6 +22,8 @@ One host runs all services per environment. Development and production use the s
 | Elasticsearch 9.5 role | Implemented |
 | NGINX private TLS reverse proxy | Implemented |
 | Full-stack integration | Implemented (all services, Garage snapshots, NGINX routing) |
+| Encrypted environment files and generation | Generation flow implemented; human runs `make generate` |
+| Synthetic CI inventory | Implemented (`inventories/ci`) |
 
 `site.yml` applies `common`, PostgreSQL, MariaDB, Garage, Elasticsearch, NGINX, and verification in dependency order. Garage is configured before Elasticsearch so the snapshot repository can be registered and verified. NGINX runs after Elasticsearch so it can trust the Elasticsearch CA.
 
@@ -63,16 +65,22 @@ python3 -m venv .venv
 pip install -r requirements-dev.txt
 ansible-galaxy collection install -r requirements.yml -p ./collections
 
-# Lint, syntax, and policy checks
-make lint
-make syntax
+# Lint, syntax, literal, and policy checks
+make lint INVENTORY=inventories/ci/hosts.yml
+make syntax INVENTORY=inventories/ci/hosts.yml
 
 # Start the disposable AlmaLinux 10 development container
 make dev-up
 
-# Create the encrypted development secrets file.
-# Prerequisite: add a real age recipient to .sops.yaml first.
-make secrets-dev
+# Preview environment generation, then create the encrypted development files.
+# The first run creates the age key and prints the public recipient. Add it to
+# .sops.yaml, then run the same command again.
+make generate ENV=dev DRY_RUN=1
+make generate ENV=dev
+
+# Edit the encrypted files and replace every <REPLACE_WITH_...> placeholder.
+sops inventories/dev/group_vars/all/environment.sops.yml
+sops tofu/dev.sops.yml
 
 # First convergence, then a drift check
 make deploy-dev

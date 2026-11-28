@@ -45,4 +45,4 @@ ssh-keyscan -p "${port}" 127.0.0.1 > "${root}/.dev/known_hosts" 2>/dev/null
 chmod 0600 "${root}/.dev/known_hosts"
 
 echo "Development container ready on 127.0.0.1:${port}."
-echo "Next: make secrets-dev && make deploy-dev-check"
+echo "Next: make generate ENV=dev && make deploy-dev-check"

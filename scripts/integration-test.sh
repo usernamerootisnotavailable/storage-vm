@@ -7,7 +7,7 @@ cd "${root}"
 export ANSIBLE_CONFIG="${root}/ansible.cfg"
 export ANSIBLE_COLLECTIONS_PATH="${root}/collections"
 ansible_playbook="${ANSIBLE_PLAYBOOK:-ansible-playbook}"
-secret_file="${TMPDIR:-/tmp}/storage-host-dev-test-secrets.yml"
+secret_file="${TMPDIR:-/tmp}/storage-host-ci-test-secrets.yml"
 
 generate_secrets() {
   umask 077
@@ -15,17 +15,18 @@ generate_secrets() {
     echo "---"
     printf 'secret_postgresql_app_password: "%s"\n' "$(openssl rand -hex 32)"
     printf 'secret_mariadb_app_password: "%s"\n' "$(openssl rand -hex 32)"
-    printf 'garage_rpc_secret: "%s"\n' "$(openssl rand -hex 32)"
-    printf 'garage_admin_token: "%s"\n' "$(openssl rand -hex 32)"
-    printf 'storage_s3_access_key: "%s"\n' "$(openssl rand -hex 8)"
-    printf 'storage_s3_secret_key: "%s"\n' "$(openssl rand -hex 32)"
-    printf 'elasticsearch_bootstrap_password: "%s"\n' "$(openssl rand -hex 32)"
+    printf 'secret_garage_rpc_secret: "%s"\n' "$(openssl rand -hex 32)"
+    printf 'secret_garage_admin_token: "%s"\n' "$(openssl rand -hex 32)"
+    printf 'secret_storage_s3_access_key: "%s"\n' "$(openssl rand -hex 8)"
+    printf 'secret_storage_s3_secret_key: "%s"\n' "$(openssl rand -hex 32)"
+    printf 'secret_elasticsearch_bootstrap_password: "%s"\n' "$(openssl rand -hex 32)"
   } > "${secret_file}"
 }
 
 if [[ ! -f "${secret_file}" ]] ||
   ! grep -q '^secret_mariadb_app_password:' "${secret_file}" ||
-  ! grep -q '^secret_postgresql_app_password:' "${secret_file}"; then
+  ! grep -q '^secret_postgresql_app_password:' "${secret_file}" ||
+  ! grep -q '^secret_storage_s3_access_key:' "${secret_file}"; then
   generate_secrets
 fi
 chmod 0600 "${secret_file}"
@@ -46,31 +47,31 @@ fi
 
 echo "Applying site.yml with ephemeral test secrets"
 "${ansible_playbook}" \
-  -i inventories/dev/hosts.yml \
+  -i inventories/ci/hosts.yml \
   site.yml \
   --extra-vars "@${secret_file}"
 
 echo "Verifying the host"
 "${ansible_playbook}" \
-  -i inventories/dev/hosts.yml \
+  -i inventories/ci/hosts.yml \
   playbooks/verify.yml \
   --extra-vars "@${secret_file}"
 
 echo "Proving PostgreSQL application logins over TLS"
 "${ansible_playbook}" \
-  -i inventories/dev/hosts.yml \
+  -i inventories/ci/hosts.yml \
   playbooks/integration-database.yml \
   --extra-vars "@${secret_file}"
 
 echo "Testing Elasticsearch snapshot create/delete with the shared S3 key"
 "${ansible_playbook}" \
-  -i inventories/dev/hosts.yml \
+  -i inventories/ci/hosts.yml \
   playbooks/integration-snapshot.yml \
   --extra-vars "@${secret_file}"
 
 echo "Checking idempotence"
 second_run="$("${ansible_playbook}" \
-  -i inventories/dev/hosts.yml \
+  -i inventories/ci/hosts.yml \
   site.yml \
   --extra-vars "@${secret_file}")"
 printf '%s\n' "${second_run}"

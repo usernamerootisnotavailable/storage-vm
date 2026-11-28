@@ -71,8 +71,7 @@ Accounts are created per application and per derived client host, not for
 
 - IPv4 `/32` becomes the exact address, for example `127.0.0.1/32` becomes
   `127.0.0.1`.
-- A broader IPv4 CIDR becomes `network/netmask`, for example `10.20.0.0/16`
-  becomes `10.20.0.0/255.255.0.0`.
+- A broader IPv4 CIDR becomes the equivalent `network/netmask` account host.
 - IPv6 `/128` becomes the exact address.
 - Broader IPv6 CIDRs fail because MariaDB account netmask syntax is IPv4-only.
   Use exact IPv6 `/128` source addresses or an IPv4 CIDR.

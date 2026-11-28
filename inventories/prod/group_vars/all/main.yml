@@ -7,7 +7,4 @@ deployment_environment: prod
 common_manage_time: true
 common_firewall_enabled: true
 common_require_selinux: true
-
-# REQUIRED: set the operator and automation source CIDRs before deployment.
-# The common role refuses to configure firewalld while this list is empty.
-common_firewall_allowed_ssh_cidrs: []
+elasticsearch_manage_sysctl: true

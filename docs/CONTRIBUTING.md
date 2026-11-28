@@ -33,8 +33,9 @@ Keep commits focused. A role change, its tests, and its documentation may be one
 - [ ] No environment branching or host-specific logic was introduced.
 - [ ] Variables are prefixed, typed, documented, and validated.
 - [ ] Versions and collections are pinned.
-- [ ] `make lint` passes.
-- [ ] `make syntax` passes.
+- [ ] `make lint INVENTORY=inventories/ci/hosts.yml` passes.
+- [ ] `make syntax INVENTORY=inventories/ci/hosts.yml` passes.
+- [ ] `make literals` passes; no environment address, CIDR, or domain is in a tracked plaintext file.
 - [ ] The affected Molecule scenario passes.
 - [ ] Integration passes for playbook or inventory changes.
 - [ ] The second run reports `changed=0`.
@@ -79,14 +80,15 @@ Changes to `.sops.yaml` or age recipients require security review.
 
 For a new secret:
 
-1. Add the `secret_*` key to the appropriate environment file.
-2. Map it in `group_vars/storage/main.yml`.
+1. Add the `secret_*` key to the appropriate encrypted environment file.
+2. Map it to a role variable in the same encrypted file.
 3. Declare the mapped variable with `no_log: true`.
 4. Use `no_log` on tasks that consume it.
 5. Add the rotation procedure to the component document.
 6. Verify the file is encrypted and only the intended recipient can decrypt it.
 
-Never commit a decrypted file, even temporarily.
+Never commit a decrypted file, even temporarily. Run `make generate ENV=<env>
+DRY_RUN=1` to preview the generation flow.
 
 ## Changing versions
 

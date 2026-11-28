@@ -1,0 +1,14 @@
+---
+# OpenTofu-only production values.
+#
+# `make generate ENV=prod` renders this template, encrypts the result to
+# tofu/prod.sops.yml, and removes the plaintext copy. Edit the encrypted file
+# with `sops` to replace every <REPLACE_WITH_...> placeholder.
+#
+# Never place the Proxmox API token or state passphrase in the Ansible
+# inventory.
+
+proxmox_endpoint: "<REPLACE_WITH_PROXMOX_ENDPOINT>"
+proxmox_api_token_id: "<REPLACE_WITH_PROXMOX_TOKEN_ID>"
+proxmox_api_token_secret: "<REPLACE_WITH_PROXMOX_TOKEN_SECRET>"
+tofu_state_passphrase: "__GENERATE_HEX_32__"

@@ -1,0 +1,98 @@
+---
+# Development environment template.
+#
+# `make generate ENV=dev` renders this file, replaces the generation markers
+# with random credentials, encrypts the result to
+# inventories/dev/group_vars/all/environment.sops.yml, and removes the
+# plaintext copy. Edit the encrypted file with `sops` to replace every
+# <REPLACE_WITH_...> placeholder.
+#
+# The values below describe the disposable development container. They are not
+# production defaults.
+
+ansible_host: "127.0.0.1"
+ansible_port: 2222
+ansible_user: "ansible"
+ansible_ssh_private_key_file: ".dev/ssh/id_ed25519"
+ansible_ssh_common_args: >-
+  -o UserKnownHostsFile=.dev/known_hosts
+  -o StrictHostKeyChecking=yes
+  -o IdentitiesOnly=yes
+
+# Firewalld is disabled in the development container.
+common_firewall_allowed_ssh_cidrs: []
+
+postgresql_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_postgresql_app_password }}"
+    databases:
+      - appdb
+    cidrs:
+      - 127.0.0.1/32
+    extensions: []
+    connection_limit: 100
+    rotate_password: false
+postgresql_backup_enabled: false
+
+mariadb_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_mariadb_app_password }}"
+    databases:
+      - appdb
+    cidrs:
+      - 127.0.0.1/32
+mariadb_backup_enabled: false
+
+storage_s3_endpoint: "http://127.0.0.1:3900"
+storage_s3_region: "garage"
+storage_s3_bucket: "elasticsearch-snapshots"
+storage_s3_access_key: "{{ secret_storage_s3_access_key }}"
+storage_s3_secret_key: "{{ secret_storage_s3_secret_key }}"
+
+garage_rpc_secret: "{{ secret_garage_rpc_secret }}"
+garage_admin_token: "{{ secret_garage_admin_token }}"
+garage_node_capacity_bytes: 1073741824
+
+elasticsearch_bootstrap_password: "{{ secret_elasticsearch_bootstrap_password }}"
+elasticsearch_heap_size: "512m"
+
+nginx_certificate_mode: generated
+nginx_base_domain: "storage.dev.invalid"
+nginx_allowed_cidrs:
+  - 127.0.0.1/32
+
+# Optional human administrators. The image-managed `ansible` account is not
+# listed here; the common role protects it.
+common_admin_users: []
+
+# OpenTofu reads these values from the encrypted file for the dev workspace.
+proxmox_node_name: "<REPLACE_WITH_PROXMOX_NODE>"
+proxmox_storage_id: "<REPLACE_WITH_PROXMOX_STORAGE>"
+proxmox_template_vmid: "<REPLACE_WITH_TEMPLATE_VMID>"
+proxmox_bridge: "<REPLACE_WITH_PROXMOX_BRIDGE>"
+storage_vm_name: "storage01"
+storage_vm_hostname: "storage01"
+storage_vm_cores: "<REPLACE_WITH_VCPU_COUNT>"
+storage_vm_memory_mb: "<REPLACE_WITH_MEMORY_MB>"
+storage_vm_disk_gb: "<REPLACE_WITH_DISK_GB>"
+storage_vm_ipv4_address: "<REPLACE_WITH_VM_ADDRESS>"
+storage_vm_ipv4_prefix_length: "<REPLACE_WITH_PREFIX_LENGTH>"
+storage_vm_ipv4_gateway: "<REPLACE_WITH_GATEWAY>"
+storage_vm_dns_servers:
+  - "<REPLACE_WITH_DNS_SERVER>"
+storage_vm_ssh_public_key: "<REPLACE_WITH_SSH_PUBLIC_KEY>"
+storage_vm_start_on_boot: true
+storage_vm_tags:
+  - storage
+
+secret_postgresql_app_password: "__GENERATE_HEX_32__"
+secret_mariadb_app_password: "__GENERATE_HEX_32__"
+secret_garage_rpc_secret: "__GENERATE_HEX_32__"
+secret_garage_admin_token: "__GENERATE_HEX_32__"
+secret_storage_s3_access_key: "__GENERATE_HEX_8__"
+secret_storage_s3_secret_key: "__GENERATE_HEX_32__"
+secret_elasticsearch_bootstrap_password: "__GENERATE_HEX_32__"

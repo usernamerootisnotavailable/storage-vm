@@ -26,6 +26,14 @@ __pycache__/
 .dev/
 docker/dev/.env
 
+# OpenTofu local state and plans
+.tofu/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tofu/.terraform/
+tofu/terraform.tfstate.d/
+
 # Secrets and private material
 .env
 .env.*

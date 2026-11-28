@@ -1,0 +1,4 @@
+---
+# Host-specific exceptions for the CI container. Keep empty unless a genuine
+# harness exception is required.
+{}

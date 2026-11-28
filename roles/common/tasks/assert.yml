@@ -20,7 +20,11 @@
   ansible.builtin.assert:
     that:
       - common_ssh_allow_users | length > 0
-    fail_msg: Set common_ssh_allow_users to the automation and administrator accounts.
+      - common_automation_user in common_ssh_allow_users
+    fail_msg: >-
+      Set common_ssh_allow_users so it includes the image-managed automation
+      account {{ common_automation_user }}. Removing it would lock out the
+      bootstrap connection.
     quiet: true
 
 - name: Validate administrator definitions
@@ -28,7 +32,11 @@
     that:
       - item.name is defined
       - item.name | length > 0
-    fail_msg: Every common_admin_users entry needs a name.
+      - item.name != common_automation_user
+    fail_msg: >-
+      Every common_admin_users entry needs a distinct name. The automation
+      account {{ common_automation_user }} is managed by the image and
+      cloud-init; do not list it as a regular administrator.
     quiet: true
   loop: "{{ common_admin_users }}"
   loop_control:

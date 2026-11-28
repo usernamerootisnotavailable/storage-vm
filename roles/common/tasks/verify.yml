@@ -38,6 +38,65 @@
     fail_msg: The SSH hardening policy is incomplete.
     quiet: true
 
+- name: Read the image-managed automation account
+  ansible.builtin.command:
+    argv:
+      - getent
+      - passwd
+      - "{{ common_automation_user }}"
+  register: common_automation_account
+  changed_when: false
+  check_mode: false
+
+- name: Assert the image-managed automation account exists
+  ansible.builtin.assert:
+    that:
+      - common_automation_account.rc == 0
+    fail_msg: >-
+      The image-managed automation account {{ common_automation_user }} is
+      missing. The common role must not break the bootstrap account.
+    quiet: true
+
+- name: Assert the image-managed automation account uses a login shell
+  ansible.builtin.assert:
+    that:
+      - common_automation_account.stdout.split(':')[6] == '/bin/bash'
+    fail_msg: >-
+      The image-managed automation account {{ common_automation_user }} no
+      longer uses a login shell. The common role must not break the bootstrap
+      account.
+    quiet: true
+  when: common_automation_account.rc == 0
+
+- name: Inspect the automation account SSH key
+  ansible.builtin.stat:
+    path: "/home/{{ common_automation_user }}/.ssh/authorized_keys"
+  register: common_automation_key
+  when: common_verify_automation_key | bool
+
+- name: Assert the automation account SSH key is present
+  ansible.builtin.assert:
+    that:
+      - common_automation_key.stat.exists
+      - common_automation_key.stat.size | default(0) | int > 0
+      - common_automation_key.stat.pw_name | default('') == common_automation_user
+    fail_msg: >-
+      The image-managed automation account has no usable authorized key. The
+      common role must not remove the cloud-init key.
+    quiet: true
+  when: common_verify_automation_key | bool
+
+- name: Verify passwordless sudo for the automation account
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -n
+      - "true"
+  become: true
+  become_user: "{{ common_automation_user }}"
+  changed_when: false
+  check_mode: false
+
 - name: Verify the managed timezone
   ansible.builtin.command:
     argv:

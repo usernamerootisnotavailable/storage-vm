@@ -17,6 +17,7 @@ concurrency:
 env:
   ANSIBLE_CONFIG: ${{ github.workspace }}/ansible.cfg
   ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}/collections
+  INVENTORY: inventories/ci/hosts.yml
 
 jobs:
   lint:
@@ -40,14 +41,22 @@ jobs:
         run: yamllint .
       - name: Lint Ansible
         run: ansible-lint
+        env:
+          ANSIBLE_INVENTORY: ${{ env.INVENTORY }}
       - name: Lint shell scripts
         run: shellcheck scripts/*.sh docker/dev/entrypoint.sh
       - name: Check policy
         run: ./scripts/check-policy.sh
+      - name: Check for environment literals
+        run: ./scripts/check-literals.sh
+      - name: Preview environment generation
+        run: |
+          make generate ENV=dev DRY_RUN=1
+          make generate ENV=prod DRY_RUN=1
       - name: Syntax-check playbooks
         run: |
           for playbook in site.yml playbooks/*.yml; do
-            ansible-playbook -i inventories/dev/hosts.yml "${playbook}" --syntax-check
+            ansible-playbook -i "${INVENTORY}" "${playbook}" --syntax-check
           done
 
   secret-scan:

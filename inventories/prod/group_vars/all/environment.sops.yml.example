@@ -1,0 +1,135 @@
+---
+# Production environment template.
+#
+# `make generate ENV=prod` renders this file, replaces the generation markers
+# with random credentials, encrypts the result to
+# inventories/prod/group_vars/all/environment.sops.yml, and removes the
+# plaintext copy. Edit the encrypted file with `sops` to replace every
+# <REPLACE_WITH_...> placeholder.
+#
+# Never use real production values in this template.
+
+ansible_host: "<REPLACE_WITH_HOST_ADDRESS>"
+ansible_port: 22
+ansible_user: "ansible"
+# Omit ansible_ssh_private_key_file to use the operator's SSH agent, or set a
+# path outside the repository.
+ansible_ssh_common_args: >-
+  -o StrictHostKeyChecking=yes
+  -o IdentitiesOnly=yes
+
+common_firewall_allowed_ssh_cidrs:
+  - "<REPLACE_WITH_SSH_SOURCE_CIDR>"
+
+postgresql_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_postgresql_app_password }}"
+    databases:
+      - appdb
+    cidrs:
+      - "<REPLACE_WITH_APP_CIDR>"
+    extensions: []
+    connection_limit: 100
+    rotate_password: false
+postgresql_tls_mode: provided
+# postgresql_tls_cert_path: "<REPLACE_WITH_POSTGRESQL_CERT_PATH>"
+# postgresql_tls_key_path: "<REPLACE_WITH_POSTGRESQL_KEY_PATH>"
+postgresql_backup_enabled: true
+# Set a reachable listener when apps use a non-loopback source network.
+# postgresql_listen_addresses: "<REPLACE_WITH_LISTEN_ADDRESS>"
+
+mariadb_apps:
+  - state: present
+    name: app
+    user: app
+    password: "{{ secret_mariadb_app_password }}"
+    databases:
+      - appdb
+    cidrs:
+      - "<REPLACE_WITH_APP_CIDR>"
+mariadb_tls_mode: provided
+# mariadb_tls_ca_path: "<REPLACE_WITH_MARIADB_CA_PATH>"
+# mariadb_tls_cert_path: "<REPLACE_WITH_MARIADB_CERT_PATH>"
+# mariadb_tls_key_path: "<REPLACE_WITH_MARIADB_KEY_PATH>"
+mariadb_backup_enabled: true
+# Set a reachable bind address when apps use a non-loopback source network.
+# mariadb_bind_address: "<REPLACE_WITH_BIND_ADDRESS>"
+
+# Optional production sizing and overrides. Role defaults are safe; set these
+# only when the host sizing or network requires a different value.
+# common_timezone: "UTC"
+# common_chrony_servers:
+#   - "<REPLACE_WITH_NTP_SERVER>"
+# postgresql_max_connections: "<REPLACE_WITH_POSTGRESQL_MAX_CONNECTIONS>"
+# postgresql_shared_buffers: "<REPLACE_WITH_POSTGRESQL_SHARED_BUFFERS>"
+# postgresql_effective_cache_size: "<REPLACE_WITH_POSTGRESQL_EFFECTIVE_CACHE_SIZE>"
+# postgresql_work_mem: "<REPLACE_WITH_POSTGRESQL_WORK_MEM>"
+# postgresql_backup_retention_days: "<REPLACE_WITH_POSTGRESQL_BACKUP_RETENTION_DAYS>"
+# mariadb_max_connections: "<REPLACE_WITH_MARIADB_MAX_CONNECTIONS>"
+# mariadb_innodb_buffer_pool_size: "<REPLACE_WITH_MARIADB_INNODB_BUFFER_POOL_SIZE>"
+# mariadb_backup_retention_days: "<REPLACE_WITH_MARIADB_BACKUP_RETENTION_DAYS>"
+# nginx_listen_address: "<REPLACE_WITH_NGINX_LISTEN_ADDRESS>"
+# nginx_elasticsearch_upstream: "<REPLACE_WITH_ELASTICSEARCH_UPSTREAM>"
+# nginx_s3_upstream: "<REPLACE_WITH_GARAGE_S3_UPSTREAM>"
+# elasticsearch_network_host: "<REPLACE_WITH_ELASTICSEARCH_BIND_ADDRESS>"
+# elasticsearch_allowed_cidrs:
+#   - "<REPLACE_WITH_ELASTICSEARCH_SOURCE_CIDR>"
+
+storage_s3_endpoint: "http://127.0.0.1:3900"
+storage_s3_region: "garage"
+storage_s3_bucket: "elasticsearch-snapshots"
+storage_s3_access_key: "{{ secret_storage_s3_access_key }}"
+storage_s3_secret_key: "{{ secret_storage_s3_secret_key }}"
+
+garage_rpc_secret: "{{ secret_garage_rpc_secret }}"
+garage_admin_token: "{{ secret_garage_admin_token }}"
+garage_node_capacity_bytes: "<REPLACE_WITH_GARAGE_CAPACITY_BYTES>"
+
+elasticsearch_bootstrap_password: "{{ secret_elasticsearch_bootstrap_password }}"
+elasticsearch_tls_mode: provided
+# elasticsearch_tls_ca_path: "<REPLACE_WITH_ELASTICSEARCH_CA_PATH>"
+# elasticsearch_tls_cert_path: "<REPLACE_WITH_ELASTICSEARCH_CERT_PATH>"
+# elasticsearch_tls_key_path: "<REPLACE_WITH_ELASTICSEARCH_KEY_PATH>"
+elasticsearch_heap_size: "<REPLACE_WITH_ELASTICSEARCH_HEAP>"
+
+nginx_certificate_mode: letsencrypt
+nginx_base_domain: "<REPLACE_WITH_BASE_DOMAIN>"
+nginx_letsencrypt_email: "<REPLACE_WITH_LETSENCRYPT_EMAIL>"
+nginx_allowed_cidrs:
+  - "<REPLACE_WITH_HTTPS_SOURCE_CIDR>"
+nginx_cloudflare_api_token: "{{ secret_nginx_cloudflare_api_token }}"
+
+# Optional human administrators. The image-managed `ansible` account is not
+# listed here; the common role protects it.
+common_admin_users: []
+
+# OpenTofu reads these values from the encrypted file for the prod workspace.
+proxmox_node_name: "<REPLACE_WITH_PROXMOX_NODE>"
+proxmox_storage_id: "<REPLACE_WITH_PROXMOX_STORAGE>"
+proxmox_template_vmid: "<REPLACE_WITH_TEMPLATE_VMID>"
+proxmox_bridge: "<REPLACE_WITH_PROXMOX_BRIDGE>"
+storage_vm_name: "storage01"
+storage_vm_hostname: "storage01"
+storage_vm_cores: "<REPLACE_WITH_VCPU_COUNT>"
+storage_vm_memory_mb: "<REPLACE_WITH_MEMORY_MB>"
+storage_vm_disk_gb: "<REPLACE_WITH_DISK_GB>"
+storage_vm_ipv4_address: "<REPLACE_WITH_VM_ADDRESS>"
+storage_vm_ipv4_prefix_length: "<REPLACE_WITH_PREFIX_LENGTH>"
+storage_vm_ipv4_gateway: "<REPLACE_WITH_GATEWAY>"
+storage_vm_dns_servers:
+  - "<REPLACE_WITH_DNS_SERVER>"
+storage_vm_ssh_public_key: "<REPLACE_WITH_SSH_PUBLIC_KEY>"
+storage_vm_start_on_boot: true
+storage_vm_tags:
+  - storage
+
+secret_postgresql_app_password: "__GENERATE_HEX_32__"
+secret_mariadb_app_password: "__GENERATE_HEX_32__"
+secret_garage_rpc_secret: "__GENERATE_HEX_32__"
+secret_garage_admin_token: "__GENERATE_HEX_32__"
+secret_storage_s3_access_key: "__GENERATE_HEX_8__"
+secret_storage_s3_secret_key: "__GENERATE_HEX_32__"
+secret_elasticsearch_bootstrap_password: "__GENERATE_HEX_32__"
+secret_nginx_cloudflare_api_token: "<REPLACE_WITH_SCOPED_CLOUDFLARE_TOKEN>"

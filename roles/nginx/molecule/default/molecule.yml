@@ -26,8 +26,9 @@ provisioner:
         common_manage_time: false
         common_firewall_enabled: false
         common_require_selinux: false
+        common_verify_automation_key: false
         nginx_certificate_mode: generated
-        nginx_base_domain: storage.example.com
+        nginx_base_domain: storage.example.invalid
         nginx_allowed_cidrs:
           - 127.0.0.1/32
         nginx_manage_firewall: false

@@ -45,11 +45,14 @@ The supported layers, lowest to highest:
 
 1. `roles/<role>/defaults/main.yml`
 2. `inventories/<env>/group_vars/all/main.yml`
-3. `inventories/<env>/group_vars/storage/main.yml`
-4. `inventories/<env>/group_vars/storage/versions.yml`
-5. `inventories/<env>/group_vars/storage/secrets.sops.yml` (`secret_*` values only)
-6. `inventories/<env>/host_vars/<host>/main.yml`
-7. Test-only runtime overrides (`--extra-vars` from an ephemeral file)
+3. `inventories/<env>/group_vars/all/versions.yml`
+4. `inventories/<env>/group_vars/all/environment.sops.yml`
+5. `inventories/<env>/host_vars/<host>/main.yml`
+6. Test-only runtime overrides (`--extra-vars` from an ephemeral file)
+
+Files in the same group_vars directory are loaded in lexical order. Do not
+duplicate a key between `main.yml`, `versions.yml`, and `environment.sops.yml`;
+the later file would silently win.
 
 Do not use:
 
@@ -66,11 +69,13 @@ Do not use:
 | Question | Location |
 |---|---|
 | Is this a safe default for every environment? | Role `defaults/main.yml` |
-| Is this environment-specific sizing, endpoint, CIDR, or feature choice? | `inventories/<env>/group_vars/storage/main.yml` |
-| Is this a component version? | `inventories/<env>/group_vars/storage/versions.yml` |
-| Is this a credential? | `inventories/<env>/group_vars/storage/secrets.sops.yml` |
+| Is this environment metadata or a test-harness capability flag? | `inventories/<env>/group_vars/all/main.yml` |
+| Is this environment-specific sizing, endpoint, CIDR, domain, or feature choice? | `inventories/<env>/group_vars/all/environment.sops.yml` |
+| Is this a component version? | `inventories/<env>/group_vars/all/versions.yml` |
+| Is this a credential? | `inventories/<env>/group_vars/all/environment.sops.yml` |
 | Is this only true for one physical host? | `inventories/<env>/host_vars/<host>/main.yml` |
-| Is this a connection parameter? | `inventories/<env>/hosts.yml` |
+| Is this a connection parameter? | `inventories/<env>/group_vars/all/environment.sops.yml` |
+| Is this only for lint, syntax, or CI? | `inventories/ci/` |
 
 If a value is set in more than one of these layers, remove the duplicate. Two exceptions are allowed:
 
@@ -103,7 +108,7 @@ postgresql_apps:
     databases:
       - appdb
     cidrs:
-      - 10.20.0.0/16
+      - 192.0.2.0/24
 ```
 
 Capability flags for the test harness are explicit and named for the capability, not the environment:
@@ -212,7 +217,7 @@ syntax is IPv4-only. Every present account requires SSL.
 
 ## Versions
 
-- Versions live in `inventories/<env>/group_vars/storage/versions.yml`.
+- Versions live in `inventories/<env>/group_vars/all/versions.yml`.
 - Pin full versions where the vendor artifact is version-specific: MariaDB, Garage, Elasticsearch, and NGINX.
 - Pin PostgreSQL by major version and record the tested patch.
 - Garage requires both a version and its SHA256 checksum.
@@ -223,13 +228,15 @@ syntax is IPv4-only. Every present account requires SSL.
 
 ## Secrets
 
-Secret values are named `secret_*` inside `secrets.sops.yml` and mapped to normal variables in `main.yml`:
+Secret values are named `secret_*` inside
+`inventories/<env>/group_vars/all/environment.sops.yml` and mapped to normal
+variables in the same encrypted file:
 
 ```yaml
-# secrets.sops.yml (encrypted)
+# environment.sops.yml (encrypted)
 secret_postgresql_app_password: "..."
+secret_mariadb_app_password: "..."
 
-# main.yml
 postgresql_apps:
   - state: present
     name: app
@@ -240,10 +247,6 @@ postgresql_apps:
     cidrs:
       - 127.0.0.1/32
 
-# secrets.sops.yml (encrypted)
-secret_mariadb_app_password: "..."
-
-# main.yml
 mariadb_apps:
   - state: present
     name: app
@@ -255,7 +258,11 @@ mariadb_apps:
       - 127.0.0.1/32
 ```
 
-Do not use `secret_*` names in roles. Roles consume the mapped variable, which keeps the role independent of the secret backend.
+The Proxmox API token and OpenTofu state passphrase live in
+`tofu/<env>.sops.yml`, not in the Ansible inventory.
+
+Do not use `secret_*` names in roles. Roles consume the mapped variable, which
+keeps the role independent of the secret backend.
 
 See `docs/SECRETS.md`.
 

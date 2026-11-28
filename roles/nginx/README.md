@@ -15,15 +15,15 @@ Private TLS reverse proxy for Elasticsearch and Garage S3.
 ## Required variables
 
 ```yaml
-nginx_base_domain: "storage.example.com"
+nginx_base_domain: "storage.example.invalid"
 nginx_allowed_cidrs:
-  - 10.20.0.0/16
+  - 192.0.2.0/24
 ```
 
 For `nginx_certificate_mode: letsencrypt`:
 
 ```yaml
-nginx_letsencrypt_email: "ops@example.com"
+nginx_letsencrypt_email: "ops@example.invalid"
 nginx_cloudflare_api_token: "{{ secret_nginx_cloudflare_api_token }}"
 ```
 

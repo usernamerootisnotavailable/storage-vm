@@ -33,6 +33,12 @@ argument_specs:
       common_require_selinux:
         type: bool
         description: Fail when SELinux is disabled.
+      common_automation_user:
+        type: str
+        description: Image-managed bootstrap account that must remain usable.
+      common_verify_automation_key:
+        type: bool
+        description: Verify the automation account has an authorized key.
       common_admin_users:
         type: list
         elements: dict
