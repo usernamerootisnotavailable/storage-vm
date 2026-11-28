@@ -57,6 +57,8 @@ provisioner:
             connection_limit: 20
             rotate_password: false
         postgresql_tls_mode: generated
+        postgresql_port: 5432
+        postgresql_socket_dir: /run/postgresql
         postgresql_provisioners:
           - state: present
             name: provisioner

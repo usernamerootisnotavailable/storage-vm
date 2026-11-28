@@ -48,6 +48,9 @@ provisioner:
             cidrs:
               - 127.0.0.1/32
         mariadb_tls_mode: generated
+        mariadb_port: 3306
+        mariadb_socket: /var/lib/mysql/mysql.sock
+        mariadb_tls_ca_path: /var/lib/mysql/tls/ca.crt
         mariadb_provisioners:
           - state: present
             name: provisioner
