@@ -15,9 +15,10 @@ The environment is selected only by:
 - The SOPS age key selected by `SOPS_AGE_KEY_FILE`
 - The OpenTofu workspace selected by `ENV` for VM provisioning
 
-`ansible.cfg` has no default inventory. Every command must pass `-i` or set
-`INVENTORY` for the Makefile check targets. Production always requires an
-explicit production inventory and the production age key.
+`ansible.cfg` has no default inventory. Direct Ansible commands must pass `-i`.
+The Makefile check targets require `INVENTORY`; deploy targets pass their
+environment explicitly. Production always requires an explicit production
+inventory and the production age key.
 
 ## Inventory layout
 
@@ -85,7 +86,7 @@ differ between environments.
 
 ## Development transport
 
-The development host is a disposable AlmaLinux 10 systemd container built from `docker/dev/`. Its encrypted environment file points SSH at the project-local key under `.dev/ssh/` and the project-local `known_hosts`.
+The development host is a disposable AlmaLinux 10 systemd container built from `docker/dev/`. Its encrypted infrastructure file points SSH at the project-local key under `.dev/ssh/` and the project-local `known_hosts`.
 
 The container is a test harness, not a production topology. It cannot validate:
 
@@ -147,7 +148,7 @@ ansible-playbook -i inventories/prod/hosts.yml site.yml
 
 The wrong key fails during decryption. Do not copy production secrets into the
 development environment. Create the files with `make generate ENV=<dev|prod>`
-and edit only the encrypted output with `sops`.
+and edit only the encrypted outputs with `sops`.
 
 ## Promotion
 

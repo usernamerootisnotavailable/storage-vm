@@ -176,7 +176,7 @@ Package repositories are configured by the role that needs them. All vendor repo
 - SELinux stays enforcing. MariaDB installs its vendor policy module. Garage and Elasticsearch have no confined domain on AlmaLinux 10 and run unconfined; this is a documented gap.
 - NGINX runs in `httpd_t`; TLS files are labeled `httpd_config_t` and upstream ports `http_port_t`.
 - firewalld default-denies inbound traffic. The broad SSH allowance is removed and replaced with source-CIDR rich rules. NGINX opens 443 only to private/VPN CIDRs.
-- Services bind loopback unless a documented client CIDR requires otherwise.
+- PostgreSQL, MariaDB, Garage, and Elasticsearch bind loopback by default. NGINX listens on 443 and restricts sources with firewalld and `nginx_allowed_cidrs`; it is not a public listener.
 - TLS is required for every listener reachable off-host. Garage has no native TLS and is fronted by NGINX.
 - Let's Encrypt certificates use DNS-01 through Cloudflare; no inbound HTTP challenge is required.
 - Service processes run as dedicated users.

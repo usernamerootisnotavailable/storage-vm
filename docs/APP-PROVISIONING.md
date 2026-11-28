@@ -34,11 +34,18 @@ Privileges and access:
 - connection limit from `connection_limit`
 - no access to the application databases as the provisioner
 
-The application deployment may use the credential to create its own role,
-database, and database grants. It must not create superusers, change server
-configuration, edit HBA, or grant access to another application. The storage
-role remains the owner of the provisioner account, its password, HBA, TLS, and
-firewall rules.
+The application deployment may use the credential to create its own role and
+database. The application account owns schema objects and object grants. It
+must not create superusers, change server configuration, edit HBA, or grant
+access to another application. The storage role remains the owner of the
+provisioner account, its password, HBA, TLS, and firewall rules.
+
+The provisioner does not render HBA or firewall access for the roles it creates.
+TCP access for an application role still comes from a `postgresql_apps` entry.
+A role or database created only through the provisioner has no HBA rule and
+cannot connect until the storage inventory declares its user, database, and
+CIDRs. The provisioner can connect only to the `postgres` database; application
+schema objects belong to the application account.
 
 `state: absent` removes HBA and firewall access. The provisioner role and the
 objects it created are retained. Remove data manually with a backup and

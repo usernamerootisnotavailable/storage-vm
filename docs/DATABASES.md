@@ -20,7 +20,7 @@ database administrators.
 |---|---|---|
 | Inventory contract | The `postgresql_apps`, `mariadb_apps`, `postgresql_provisioners`, or `mariadb_provisioners` entry, including engine, names, prefixes, databases, CIDRs, and state | Its own deployment configuration and application schema |
 | Identity | Roles, accounts, passwords, database ownership, database grants, provisioner scope, and reserved-name enforcement | Schema migrations, object ownership inside its databases, and runtime object grants permitted to its account |
-| Provisioning | Provisioner account credentials, global privileges, prefix scope, HBA or account hosts, TLS requirements, and firewall exposure | Creating or dropping only its own scoped roles, databases, and grants through the provisioner account |
+| Provisioning | Provisioner account credentials, global privileges, prefix scope, HBA or account hosts, TLS requirements, and firewall exposure | Creating and dropping its own scoped roles and databases through the provisioner account |
 | Authentication | `pg_hba.conf`, MariaDB account hosts, TLS requirements, listener addresses, and database firewall rules | Connecting from the declared source network and verifying the server certificate |
 | Secrets | The encrypted database password and its mapping into the app or provisioner entry | Consuming the matching credential through the application's own secret store |
 | Verification | Role/account, database, extension, HBA, grant or ownership, and TLS verification as the database administrator | A real connection from the application network, migrations, and application health |
@@ -95,7 +95,7 @@ Rules:
 - Do not create an entry for an application that does not use PostgreSQL or
   MariaDB. A future possibility is not a reason to provision a database.
 - Do not create both entries for one application unless the application
-  genuinely requires both engines for separate data.
+  requires both engines for separate data.
 - If the application supports both engines, choose one, record the reason in the
   pull request, and keep the unused engine free of placeholder accounts and
   databases.
@@ -502,7 +502,7 @@ database and that no data was lost.
 
 ### PostgreSQL steps
 
-1. Add the entry with `extensions: []` unless the application genuinely needs a
+1. Add the entry with `extensions: []` unless the application needs a
    supported extension. Extensions are created in every database for that app.
 2. Set `connection_limit` only when the application needs a role limit. The
    default `-1` uses the server default.
@@ -591,6 +591,10 @@ restore verification and any data loss window.
   provisioner credential described above.
 - **PostgreSQL grants are ownership-based.** The role verifies database ownership
   and role attributes, not per-object grants created by the application.
+- **PostgreSQL provisioner access is separate.** A role or database created
+  through a provisioner has no HBA rule until a `postgresql_apps` entry declares
+  its user, database, and CIDRs. The provisioner can create objects but cannot
+  edit `pg_hba.conf` or firewalld.
 - **MariaDB has no per-app connection limit.** Only the global
   `mariadb_max_connections` setting exists. Do not treat it as an app-level
   control.

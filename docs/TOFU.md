@@ -113,7 +113,7 @@ The underlying wrapper also accepts arguments:
 
 ```bash
 ./scripts/tofu.sh dev plan -out=dev.tfplan
-./scripts/tofu.sh dev plan dev.tfplan
+./scripts/tofu.sh dev apply dev.tfplan
 ```
 
 ## First-run sequence
@@ -159,4 +159,4 @@ wait for it to report an address; the handoff waits for SSH instead.
 | Provider authentication fails | Proxmox endpoint, token ID/secret, token permissions, and `proxmox_insecure` |
 | Clone cannot find the template | `proxmox_template_vmid`, node, and storage ID |
 | Root filesystem is not resized | The disk size must be set before the first boot |
-| SFTP/SSH host key mismatch | Re-run `ssh-keyscan` after the first boot |
+| SSH host key mismatch | Re-run `ssh-keyscan` after the first boot |

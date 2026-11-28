@@ -71,7 +71,7 @@ Do not use:
 |---|---|
 | Is this a safe default for every environment? | Role `defaults/main.yml` |
 | Is this environment metadata or a test-harness capability flag? | `inventories/<env>/group_vars/all/main.yml` |
-| Is this environment-specific sizing, endpoint, CIDR, domain, or feature choice? | `inventories/<env>/group_vars/all/environment.sops.yml` |
+| Is this environment-specific service sizing, endpoint, CIDR, domain, or feature choice? | `inventories/<env>/group_vars/all/environment.sops.yml` |
 | Is this a component version? | `inventories/<env>/group_vars/all/versions.yml` |
 | Is this a credential? | `inventories/<env>/group_vars/all/environment.sops.yml` |
 | Is this a shared connection, VM, or Proxmox placement value? | `inventories/<env>/group_vars/all/infrastructure.sops.yml` |

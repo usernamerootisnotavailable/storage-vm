@@ -217,7 +217,7 @@ tofu_state_passphrase: "..."
 Ansible inventory. The state passphrase must be 64 lowercase hex characters;
 `scripts/tofu.sh` validates it before building `TF_ENCRYPTION`.
 
-Because the Ansible environment file contains both values and credentials, the
+Because the SOPS files contain both values and credentials, the
 `register_values_as_secrets = True` setting also redacts non-secret values from
 task output. That is intentional defense in depth.
 
@@ -316,12 +316,17 @@ and grant it bucket permissions before removing the old one.
 
 ### Rotate the OpenTofu state passphrase
 
+Rotating the passphrase requires a reviewed change to `scripts/tofu.sh` or
+`TF_ENCRYPTION`, because the current wrapper defines one key provider and one
+method. Do not overwrite the passphrase in place.
+
 1. Generate a new passphrase.
-2. Update `tofu_state_passphrase` in `tofu/<env>.sops.yml`.
-3. Re-encrypt the existing local state with the new passphrase using the
-   OpenTofu state encryption workflow.
+2. Add a new PBKDF2 key provider and AES-GCM method with a fallback to the
+   current method.
+3. Run a state read/write so OpenTofu rewrites the state under the new method.
 4. Verify a plan can read the state.
-5. Destroy the old passphrase backup only after the new one is verified.
+5. Remove the fallback and the old passphrase after the new state is verified.
+6. Update `tofu_state_passphrase` in `tofu/<env>.sops.yml`.
 
 ### Rotate an age identity
 

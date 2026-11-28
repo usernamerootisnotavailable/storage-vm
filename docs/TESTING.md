@@ -5,7 +5,7 @@
 | Layer | Tool | What it proves |
 |---|---|---|
 | Formatting | `yamllint` | YAML is valid and consistently formatted |
-| Static analysis | `ansible-lint` production profile | Ansible best practices and common failure modes |
+| Static analysis | `ansible-lint` production profile | Ansible lint rules and common failure modes |
 | Policy | `scripts/check-policy.sh` | No environment branching, unpinned versions, plaintext keys, or missing role contracts |
 | Syntax | `ansible-playbook --syntax-check` | Playbooks, roles, modules, and inventory parse |
 | OpenTofu format | `tofu fmt -check` | HCL formatting |
@@ -94,11 +94,16 @@ The scenarios disable only test-harness capabilities:
 common_manage_time: false
 common_firewall_enabled: false
 common_require_selinux: false
-common_verify_automation_key: false
 postgresql_manage_firewall: false
 mariadb_manage_firewall: false
 elasticsearch_manage_firewall: false
 elasticsearch_manage_sysctl: false
+```
+
+Service-role scenarios also set:
+
+```yaml
+common_verify_automation_key: false
 ```
 
 The `common` scenario creates an ephemeral authorized key and keeps the key
@@ -219,7 +224,7 @@ The second convergence must report `changed=0`. Common causes of non-idempotence
 - Repository or GPG key tasks that re-download every time
 - Handlers notified unconditionally
 
-Do not hide a change with `changed_when: false` unless the task is genuinely read-only.
+Do not hide a change with `changed_when: false` unless the task is read-only.
 
 ## Known gaps
 
