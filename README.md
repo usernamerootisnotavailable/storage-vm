@@ -129,6 +129,7 @@ Production deployment requires approval, a backup, and the production age key. S
 | [`docs/COMPONENTS.md`](docs/COMPONENTS.md) | Component contracts and verified platform data |
 | [`docs/DATABASES.md`](docs/DATABASES.md) | Cross-engine policy for PostgreSQL and MariaDB applications |
 | [`docs/TOFU.md`](docs/TOFU.md) | OpenTofu VM provisioning, state encryption, and handoff |
+| [`docs/HANDOFF.md`](docs/HANDOFF.md) | First VM handoff and first Ansible connection |
 | [`docs/components/postgresql.md`](docs/components/postgresql.md) | PostgreSQL role reference |
 | [`docs/components/mariadb.md`](docs/components/mariadb.md) | MariaDB role reference |
 | [`docs/components/garage.md`](docs/components/garage.md) | Garage role reference |

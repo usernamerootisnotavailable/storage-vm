@@ -118,6 +118,9 @@ The underlying wrapper also accepts arguments:
 
 ## First-run sequence
 
+See [`docs/HANDOFF.md`](HANDOFF.md) for the full first-VM handoff, including
+the first Ansible connection as `ansible`.
+
 1. Create the AL10 template VM in Proxmox and record its VMID.
 2. Create a Proxmox API token with permission to allocate and configure VMs and
    allocate space on the target datastore. Put the endpoint and token in

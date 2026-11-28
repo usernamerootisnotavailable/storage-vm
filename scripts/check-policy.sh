@@ -24,6 +24,7 @@ for document in \
   docs/COMPONENTS.md \
   docs/DATABASES.md \
   docs/TOFU.md \
+  docs/HANDOFF.md \
   docs/components/postgresql.md \
   docs/components/mariadb.md \
   docs/components/garage.md \
