@@ -64,8 +64,8 @@ requirements-dev.txt        Pinned lint and test tooling
 site.yml                    Full host convergence
 playbooks/                  Per-role and verification playbooks
 roles/                      common, postgresql, mariadb, garage, elasticsearch, nginx
-inventories/dev/            Development inventory and encrypted environment file
-inventories/prod/           Production inventory and encrypted environment file
+inventories/dev/            Development inventory and encrypted environment files
+inventories/prod/           Production inventory and encrypted environment files
 inventories/ci/             Synthetic plaintext inventory for CI checks
 tofu/                       OpenTofu root module and environment-only credentials
 docker/dev/                 AlmaLinux 10 systemd development image
@@ -86,6 +86,19 @@ docs/                       Normative project documentation
 7. `verify` — service health checks
 
 Garage must run before Elasticsearch because Elasticsearch registers a Garage snapshot repository. NGINX runs after Elasticsearch so it can copy and trust the Elasticsearch CA.
+
+## VM provisioning
+
+`tofu/` creates one VM per environment from the AL10 base-image template. It
+sets the logical VM name, static address, DNS, SSH public key, CPU, memory, and
+disk size through cloud-init. The base image supplies the `ansible` account, its
+passwordless sudo rule, and the guest agent. Ansible then applies `site.yml`.
+
+OpenTofu state is local and encrypted with a PBKDF2/AES-GCM passphrase from
+`tofu/<env>.sops.yml`. Shared VM and placement values live in
+`inventories/<env>/group_vars/all/infrastructure.sops.yml`; the Proxmox API
+token is read through an ephemeral SOPS resource and never enters state. See
+[`docs/TOFU.md`](TOFU.md).
 
 Per-role tags allow targeted runs:
 

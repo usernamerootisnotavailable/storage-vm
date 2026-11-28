@@ -11,4 +11,5 @@
 proxmox_endpoint: "<REPLACE_WITH_PROXMOX_ENDPOINT>"
 proxmox_api_token_id: "<REPLACE_WITH_PROXMOX_TOKEN_ID>"
 proxmox_api_token_secret: "<REPLACE_WITH_PROXMOX_TOKEN_SECRET>"
+proxmox_insecure: false
 tofu_state_passphrase: "__GENERATE_HEX_32__"

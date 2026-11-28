@@ -7,6 +7,10 @@ ANSIBLE_GALAXY ?= $(VENV)/bin/ansible-galaxy
 ANSIBLE_LINT ?= $(VENV)/bin/ansible-lint
 YAMLLINT ?= $(VENV)/bin/yamllint
 MOLECULE ?= $(VENV)/bin/molecule
+TOFU ?= tofu
+TFLINT ?= tflint
+TOFU_VERSION ?= 1.12.12
+TFLINT_VERSION ?= 0.66.0
 ENV ?=
 DRY_RUN ?=
 COLLECTIONS := $(CURDIR)/collections
@@ -14,8 +18,11 @@ COLLECTIONS := $(CURDIR)/collections
 export ANSIBLE_CONFIG := $(CURDIR)/ansible.cfg
 export ANSIBLE_COLLECTIONS_PATH := $(COLLECTIONS)
 export PATH := $(VENV)/bin:$(PATH)
+export TOFU_BIN := $(TOFU)
+export TOFU_VERSION
+export TFLINT_VERSION
 
-.PHONY: help deps lint syntax check literals generate sysctl test-image molecule dev-up dev-down deploy-dev-check deploy-dev verify integration secrets-dev secrets-prod test clean
+.PHONY: help deps lint syntax check literals generate sysctl test-image molecule dev-up dev-down deploy-dev-check deploy-dev verify integration secrets-dev secrets-prod tf-init tf-fmt tf-validate tf-lint tf-plan tf-apply tf-check test clean
 
 help:
 	@echo "Storage Host targets:"
@@ -35,6 +42,13 @@ help:
 	@echo "  make deploy-dev         Apply to development"
 	@echo "  make verify             Verify development"
 	@echo "  make integration        Full apply, verify, and idempotence check"
+	@echo "  make tf-init ENV=...    Initialize OpenTofu and select the environment workspace"
+	@echo "  make tf-fmt ENV=...     Check OpenTofu formatting"
+	@echo "  make tf-validate ENV=...  Validate the OpenTofu module"
+	@echo "  make tf-lint ENV=...    Run tflint"
+	@echo "  make tf-check ENV=...   OpenTofu init, fmt, validate, and tflint"
+	@echo "  make tf-plan ENV=...    Plan the environment (requires SOPS key)"
+	@echo "  make tf-apply ENV=...   Apply the environment (requires SOPS key)"
 	@echo "  make test               check plus Molecule"
 
 $(VENV)/bin/ansible:
@@ -67,6 +81,35 @@ literals:
 generate:
 	@test -n "$(ENV)" || { echo "Usage: make generate ENV=dev|prod [DRY_RUN=1]" >&2; exit 2; }
 	./scripts/generate.sh "$(ENV)" $(if $(filter 1 true yes,$(DRY_RUN)),--dry-run,)
+
+tf-init:
+	@test -n "$(ENV)" || { echo "Set ENV=dev or ENV=prod" >&2; exit 2; }
+	./scripts/tofu.sh "$(ENV)" init
+
+tf-fmt:
+	@test -n "$(ENV)" || { echo "Set ENV=dev or ENV=prod" >&2; exit 2; }
+	./scripts/tofu.sh "$(ENV)" fmt
+
+tf-validate:
+	@test -n "$(ENV)" || { echo "Set ENV=dev or ENV=prod" >&2; exit 2; }
+	./scripts/tofu.sh "$(ENV)" validate
+
+tf-lint:
+	@test -n "$(ENV)" || { echo "Set ENV=dev or ENV=prod" >&2; exit 2; }
+	@command -v "$(TFLINT)" >/dev/null 2>&1 || { echo "tflint not found: $(TFLINT)" >&2; exit 1; }
+	@$(TFLINT) --version | grep -q "TFLint version $(TFLINT_VERSION)" || { \
+		echo "tflint $(TFLINT_VERSION) is required" >&2; exit 1; }
+	cd tofu && $(TFLINT) --config .tflint.hcl
+
+tf-plan:
+	@test -n "$(ENV)" || { echo "Set ENV=dev or ENV=prod" >&2; exit 2; }
+	./scripts/tofu.sh "$(ENV)" plan
+
+tf-apply:
+	@test -n "$(ENV)" || { echo "Set ENV=dev or ENV=prod" >&2; exit 2; }
+	./scripts/tofu.sh "$(ENV)" apply
+
+tf-check: tf-init tf-fmt tf-validate tf-lint
 
 sysctl:
 	@current=$$(sysctl -n vm.max_map_count 2>/dev/null || echo 0); \

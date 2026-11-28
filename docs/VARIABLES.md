@@ -47,12 +47,13 @@ The supported layers, lowest to highest:
 2. `inventories/<env>/group_vars/all/main.yml`
 3. `inventories/<env>/group_vars/all/versions.yml`
 4. `inventories/<env>/group_vars/all/environment.sops.yml`
-5. `inventories/<env>/host_vars/<host>/main.yml`
-6. Test-only runtime overrides (`--extra-vars` from an ephemeral file)
+5. `inventories/<env>/group_vars/all/infrastructure.sops.yml`
+6. `inventories/<env>/host_vars/<host>/main.yml`
+7. Test-only runtime overrides (`--extra-vars` from an ephemeral file)
 
 Files in the same group_vars directory are loaded in lexical order. Do not
-duplicate a key between `main.yml`, `versions.yml`, and `environment.sops.yml`;
-the later file would silently win.
+duplicate a key between `main.yml`, `versions.yml`, `environment.sops.yml`, and
+`infrastructure.sops.yml`; the later file would silently win.
 
 Do not use:
 
@@ -73,8 +74,9 @@ Do not use:
 | Is this environment-specific sizing, endpoint, CIDR, domain, or feature choice? | `inventories/<env>/group_vars/all/environment.sops.yml` |
 | Is this a component version? | `inventories/<env>/group_vars/all/versions.yml` |
 | Is this a credential? | `inventories/<env>/group_vars/all/environment.sops.yml` |
+| Is this a shared connection, VM, or Proxmox placement value? | `inventories/<env>/group_vars/all/infrastructure.sops.yml` |
 | Is this only true for one physical host? | `inventories/<env>/host_vars/<host>/main.yml` |
-| Is this a connection parameter? | `inventories/<env>/group_vars/all/environment.sops.yml` |
+| Is this a connection parameter? | `inventories/<env>/group_vars/all/infrastructure.sops.yml` |
 | Is this only for lint, syntax, or CI? | `inventories/ci/` |
 
 If a value is set in more than one of these layers, remove the duplicate. Two exceptions are allowed:
@@ -259,7 +261,9 @@ mariadb_apps:
 ```
 
 The Proxmox API token and OpenTofu state passphrase live in
-`tofu/<env>.sops.yml`, not in the Ansible inventory.
+`tofu/<env>.sops.yml`, not in the Ansible inventory. Shared connection, VM, and
+Proxmox placement values live in `infrastructure.sops.yml`; that file must not
+contain credentials.
 
 Do not use `secret_*` names in roles. Roles consume the mapped variable, which
 keeps the role independent of the secret backend.

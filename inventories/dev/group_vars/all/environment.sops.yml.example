@@ -7,19 +7,9 @@
 # plaintext copy. Edit the encrypted file with `sops` to replace every
 # <REPLACE_WITH_...> placeholder.
 #
-# The values below describe the disposable development container. They are not
-# production defaults.
+# Connection, VM, and Proxmox placement values live in infrastructure.sops.yml.
+# The values below describe the disposable development container.
 
-ansible_host: "127.0.0.1"
-ansible_port: 2222
-ansible_user: "ansible"
-ansible_ssh_private_key_file: ".dev/ssh/id_ed25519"
-ansible_ssh_common_args: >-
-  -o UserKnownHostsFile=.dev/known_hosts
-  -o StrictHostKeyChecking=yes
-  -o IdentitiesOnly=yes
-
-# Firewalld is disabled in the development container.
 common_firewall_allowed_ssh_cidrs: []
 
 postgresql_apps:
@@ -68,26 +58,6 @@ nginx_allowed_cidrs:
 # Optional human administrators. The image-managed `ansible` account is not
 # listed here; the common role protects it.
 common_admin_users: []
-
-# OpenTofu reads these values from the encrypted file for the dev workspace.
-proxmox_node_name: "<REPLACE_WITH_PROXMOX_NODE>"
-proxmox_storage_id: "<REPLACE_WITH_PROXMOX_STORAGE>"
-proxmox_template_vmid: "<REPLACE_WITH_TEMPLATE_VMID>"
-proxmox_bridge: "<REPLACE_WITH_PROXMOX_BRIDGE>"
-storage_vm_name: "storage01"
-storage_vm_hostname: "storage01"
-storage_vm_cores: "<REPLACE_WITH_VCPU_COUNT>"
-storage_vm_memory_mb: "<REPLACE_WITH_MEMORY_MB>"
-storage_vm_disk_gb: "<REPLACE_WITH_DISK_GB>"
-storage_vm_ipv4_address: "<REPLACE_WITH_VM_ADDRESS>"
-storage_vm_ipv4_prefix_length: "<REPLACE_WITH_PREFIX_LENGTH>"
-storage_vm_ipv4_gateway: "<REPLACE_WITH_GATEWAY>"
-storage_vm_dns_servers:
-  - "<REPLACE_WITH_DNS_SERVER>"
-storage_vm_ssh_public_key: "<REPLACE_WITH_SSH_PUBLIC_KEY>"
-storage_vm_start_on_boot: true
-storage_vm_tags:
-  - storage
 
 secret_postgresql_app_password: "__GENERATE_HEX_32__"
 secret_mariadb_app_password: "__GENERATE_HEX_32__"

@@ -39,19 +39,26 @@ key_file="${key_dir}/${environment}.keys.txt"
 
 inventory_example="${root}/inventories/${environment}/group_vars/all/environment.sops.yml.example"
 inventory_output="${root}/inventories/${environment}/group_vars/all/environment.sops.yml"
+infrastructure_example="${root}/inventories/${environment}/group_vars/all/infrastructure.sops.yml.example"
+infrastructure_output="${root}/inventories/${environment}/group_vars/all/infrastructure.sops.yml"
 tofu_example="${root}/tofu/${environment}.sops.yml.example"
 tofu_output="${root}/tofu/${environment}.sops.yml"
 sops_config="${root}/.sops.yaml"
 renderer="${root}/scripts/render-example.py"
 
-for required in "${inventory_example}" "${tofu_example}" "${sops_config}" "${renderer}"; do
+for required in \
+  "${inventory_example}" \
+  "${infrastructure_example}" \
+  "${tofu_example}" \
+  "${sops_config}" \
+  "${renderer}"; do
   [[ -f "${required}" ]] || {
     echo "Missing required file: ${required}" >&2
     exit 1
   }
 done
 
-for output in "${inventory_output}" "${tofu_output}"; do
+for output in "${inventory_output}" "${infrastructure_output}" "${tofu_output}"; do
   if [[ -e "${output}" ]]; then
     echo "Refusing to overwrite existing file: ${output}" >&2
     exit 1
@@ -67,6 +74,7 @@ if [[ "${dry_run}" == "true" ]]; then
   echo "DRY RUN: a matching .sops.yaml creation rule is required before encryption"
   echo "DRY RUN: would render and encrypt:"
   echo "  ${inventory_example} -> ${inventory_output}"
+  echo "  ${infrastructure_example} -> ${infrastructure_output}"
   echo "  ${tofu_example} -> ${tofu_output}"
   echo "DRY RUN: no files changed"
   exit 0
@@ -93,8 +101,8 @@ umask 077
 temporary_directory="$(mktemp -d)"
 trap 'rm -rf "${temporary_directory}"' EXIT
 
-examples=("${inventory_example}" "${tofu_example}")
-outputs=("${inventory_output}" "${tofu_output}")
+examples=("${inventory_example}" "${infrastructure_example}" "${tofu_example}")
+outputs=("${inventory_output}" "${infrastructure_output}" "${tofu_output}")
 encrypted_files=()
 
 for index in "${!examples[@]}"; do
@@ -140,5 +148,6 @@ done
 echo
 echo "Next steps:"
 echo "  1. sops ${inventory_output}"
-echo "  2. sops ${tofu_output}"
-echo "  3. Run the checks with INVENTORY=inventories/ci/hosts.yml"
+echo "  2. sops ${infrastructure_output}"
+echo "  3. sops ${tofu_output}"
+echo "  4. Run the checks with INVENTORY=inventories/ci/hosts.yml"

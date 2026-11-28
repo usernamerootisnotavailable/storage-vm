@@ -11,6 +11,9 @@
 - Decryption happens on the controller. Managed hosts never receive an age key.
 - Ansible loads encrypted variables through the `community.sops.sops` vars
   plugin.
+- Shared connection, VM, and Proxmox placement values live in an encrypted
+  infrastructure file with no credentials. Ansible loads it, and OpenTofu reads
+  it through `data "sops_file"`.
 - The Proxmox API token and OpenTofu state passphrase live in a separate
   OpenTofu-only file so Ansible never receives them.
 
@@ -20,8 +23,12 @@
 .sops.yaml
 inventories/dev/group_vars/all/environment.sops.yml
 inventories/dev/group_vars/all/environment.sops.yml.example
+inventories/dev/group_vars/all/infrastructure.sops.yml
+inventories/dev/group_vars/all/infrastructure.sops.yml.example
 inventories/prod/group_vars/all/environment.sops.yml
 inventories/prod/group_vars/all/environment.sops.yml.example
+inventories/prod/group_vars/all/infrastructure.sops.yml
+inventories/prod/group_vars/all/infrastructure.sops.yml.example
 tofu/dev.sops.yml
 tofu/dev.sops.yml.example
 tofu/prod.sops.yml
@@ -29,14 +36,15 @@ tofu/prod.sops.yml.example
 inventories/ci/                                      plaintext synthetic values
 ```
 
-`environment.sops.yml` contains both the environment's non-secret values and
-its `secret_*` credentials. Keeping one encrypted file per environment makes
-the value set atomic and gives it one age recipient. The corresponding
-`.example` file is the committed template; `make generate` renders it and
-encrypts the result.
+`environment.sops.yml` contains the environment's Ansible service values and
+its `secret_*` credentials. `infrastructure.sops.yml` contains connection
+details, VM sizing, and Proxmox placement values; it must not contain
+passwords. Keeping infrastructure separate lets OpenTofu read it without
+placing database passwords in state.
 
 `tofu/<env>.sops.yml` contains only the Proxmox endpoint/token and the state
-encryption passphrase. It is never loaded by Ansible.
+encryption passphrase. It is read through an ephemeral SOPS resource and is
+never loaded by Ansible.
 
 The plugin only loads files ending in `.sops.yml`, `.sops.yaml`, or `.sops.json`.
 An unencrypted file with one of those extensions causes an error. Templates use
@@ -117,10 +125,10 @@ Run `make generate ENV=<dev|prod>`. The command:
 3. Prints the public recipient and requires a matching `.sops.yaml` rule.
 4. Renders the committed `*.example` templates.
 5. Replaces the `__GENERATE_HEX_*__` markers with random credentials.
-6. Encrypts the rendered file with SOPS and verifies that the generated age key
+6. Encrypts each rendered file with SOPS and verifies that the generated age key
    can decrypt it.
-7. Writes the encrypted output with mode `0600` and removes the plaintext
-   temporary file.
+7. Writes each encrypted output with mode `0600` and removes the plaintext
+   temporary files.
 
 The first run may create the key and then fail because `.sops.yaml` has no
 matching rule. Add the printed public recipient to the correct rule and run the
@@ -138,7 +146,7 @@ regenerating it.
 
 ## Creating and editing values
 
-The generated file contains two kinds of placeholders:
+The generated files contain two kinds of placeholders:
 
 - `__GENERATE_HEX_8__` and `__GENERATE_HEX_32__` are replaced by `make generate`.
 - `<REPLACE_WITH_...>` values must be supplied by the operator.
@@ -147,6 +155,7 @@ After generation:
 
 ```bash
 sops inventories/dev/group_vars/all/environment.sops.yml
+sops inventories/dev/group_vars/all/infrastructure.sops.yml
 sops tofu/dev.sops.yml
 ```
 
@@ -161,8 +170,10 @@ sops --decrypt file.sops.yml > plaintext.yml
 
 ## Variable naming
 
-Only `secret_*` values are credentials. Environment values use the normal
-component prefixes. Both live in the same encrypted file.
+Only `secret_*` values are credentials. They live in `environment.sops.yml`
+with the Ansible service values. `infrastructure.sops.yml` contains connection,
+VM, and placement values but no credentials. OpenTofu reads that file through
+`data "sops_file"`, so database passwords never enter OpenTofu state.
 
 ```yaml
 secret_postgresql_app_password: "..."
@@ -198,13 +209,15 @@ The OpenTofu-only file uses:
 proxmox_endpoint: "..."
 proxmox_api_token_id: "..."
 proxmox_api_token_secret: "..."
+proxmox_insecure: false
 tofu_state_passphrase: "..."
 ```
 
 `proxmox_endpoint`, the token, and the state passphrase are never placed in the
-Ansible inventory.
+Ansible inventory. The state passphrase must be 64 lowercase hex characters;
+`scripts/tofu.sh` validates it before building `TF_ENCRYPTION`.
 
-Because the Ansible file contains both values and credentials, the
+Because the Ansible environment file contains both values and credentials, the
 `register_values_as_secrets = True` setting also redacts non-secret values from
 task output. That is intentional defense in depth.
 

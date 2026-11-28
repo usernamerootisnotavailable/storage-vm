@@ -59,6 +59,33 @@ jobs:
             ansible-playbook -i "${INVENTORY}" "${playbook}" --syntax-check
           done
 
+  tofu:
+    name: OpenTofu format, validation, and lint
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - name: Set up OpenTofu
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4
+        with:
+          tofu_version: "1.12.12"
+          tofu_wrapper: false
+      - name: Set up TFLint
+        uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337
+        with:
+          tflint_version: "v0.66.0"
+          cache: true
+      - name: Initialize OpenTofu
+        run: make tf-init ENV=dev
+      - name: Check formatting
+        run: make tf-fmt ENV=dev
+      - name: Validate
+        run: make tf-validate ENV=dev
+      - name: Lint
+        run: make tf-lint ENV=dev
+
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest

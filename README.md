@@ -24,6 +24,7 @@ One host runs all services per environment. Development and production use the s
 | Full-stack integration | Implemented (all services, Garage snapshots, NGINX routing) |
 | Encrypted environment files and generation | Generation flow implemented; human runs `make generate` |
 | Synthetic CI inventory | Implemented (`inventories/ci`) |
+| OpenTofu VM provisioning | Implemented; fmt, validate, and tflint pass; no plan/apply run |
 
 `site.yml` applies `common`, PostgreSQL, MariaDB, Garage, Elasticsearch, NGINX, and verification in dependency order. Garage is configured before Elasticsearch so the snapshot repository can be registered and verified. NGINX runs after Elasticsearch so it can trust the Elasticsearch CA.
 
@@ -43,6 +44,7 @@ On the controller:
 - `ansible-core` 2.22 or newer
 - The collections pinned in `requirements.yml`
 - `sops` 3.12+ with `age` for encrypted variables
+- OpenTofu 1.12.12 and TFLint 0.66.0 for VM provisioning
 - Docker with a running daemon for local Molecule and integration tests
 - `vm.max_map_count=262144` on the Docker host for Elasticsearch; `make dev-up`
   attempts to raise it when passwordless sudo is available
@@ -80,6 +82,7 @@ make generate ENV=dev
 
 # Edit the encrypted files and replace every <REPLACE_WITH_...> placeholder.
 sops inventories/dev/group_vars/all/environment.sops.yml
+sops inventories/dev/group_vars/all/infrastructure.sops.yml
 sops tofu/dev.sops.yml
 
 # First convergence, then a drift check
@@ -98,6 +101,18 @@ ansible-playbook -i inventories/prod/hosts.yml site.yml --check --diff
 ansible-playbook -i inventories/prod/hosts.yml site.yml
 ```
 
+Provisioning a fresh VM with OpenTofu is separate from the container workflow:
+
+```bash
+# After make generate ENV=prod and editing the encrypted files
+make tf-init ENV=prod
+make tf-plan ENV=prod
+make tf-apply ENV=prod
+```
+
+Review the plan before apply. The full handoff sequence is in
+[`docs/TOFU.md`](docs/TOFU.md).
+
 Production deployment requires approval, a backup, and the production age key. Set the production SSH and NGINX HTTPS CIDRs before enabling the firewall, and include the operator and automation source addresses. Production NGINX uses Let's Encrypt DNS-01 through Cloudflare; the private server needs no inbound HTTP challenge. See `docs/ENVIRONMENTS.md` and `docs/components/nginx.md`.
 
 ## Documentation
@@ -113,6 +128,7 @@ Production deployment requires approval, a backup, and the production age key. S
 | [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) | Change workflow and review checklist |
 | [`docs/COMPONENTS.md`](docs/COMPONENTS.md) | Component contracts and verified platform data |
 | [`docs/DATABASES.md`](docs/DATABASES.md) | Cross-engine policy for PostgreSQL and MariaDB applications |
+| [`docs/TOFU.md`](docs/TOFU.md) | OpenTofu VM provisioning, state encryption, and handoff |
 | [`docs/components/postgresql.md`](docs/components/postgresql.md) | PostgreSQL role reference |
 | [`docs/components/mariadb.md`](docs/components/mariadb.md) | MariaDB role reference |
 | [`docs/components/garage.md`](docs/components/garage.md) | Garage role reference |

@@ -98,6 +98,7 @@ DRY_RUN=1` to preview the generation flow.
 4. Test in development.
 5. Record the tested package version in `docs/COMPONENTS.md`.
 6. Deploy to production with a rollback plan.
+7. OpenTofu provider and tool pins are separate; run `make tf-check ENV=dev` and commit the updated lock file.
 
 ## Emergency changes
 

@@ -1,0 +1,40 @@
+---
+# Shared infrastructure template.
+#
+# `make generate ENV=dev` renders this file, encrypts the result to
+# inventories/dev/group_vars/all/infrastructure.sops.yml, and removes the
+# plaintext copy. Ansible loads the encrypted file and OpenTofu reads it through
+# the sops_file data source.
+#
+# This file must never contain passwords or tokens. Those live in
+# environment.sops.yml and tofu/dev.sops.yml.
+#
+# Edit the encrypted file with `sops` to replace every <REPLACE_WITH_...>
+# placeholder.
+
+ansible_host: "<REPLACE_WITH_VM_ADDRESS>"
+ansible_port: 2222
+ansible_user: "ansible"
+ansible_ssh_private_key_file: ".dev/ssh/id_ed25519"
+ansible_ssh_common_args: >-
+  -o UserKnownHostsFile=.dev/known_hosts
+  -o StrictHostKeyChecking=yes
+  -o IdentitiesOnly=yes
+
+proxmox_node_name: "<REPLACE_WITH_PROXMOX_NODE>"
+proxmox_storage_id: "<REPLACE_WITH_PROXMOX_STORAGE>"
+proxmox_template_vmid: "<REPLACE_WITH_TEMPLATE_VMID>"
+proxmox_bridge: "<REPLACE_WITH_PROXMOX_BRIDGE>"
+
+# The VM name is also the cloud-init hostname. Use the logical hostname.
+storage_vm_name: "storage01"
+storage_vm_cores: "<REPLACE_WITH_VCPU_COUNT>"
+storage_vm_memory_mb: "<REPLACE_WITH_MEMORY_MB>"
+storage_vm_disk_gb: "<REPLACE_WITH_DISK_GB>"
+storage_vm_cpu_type: "<REPLACE_WITH_CPU_TYPE>"
+storage_vm_ipv4_prefix_length: "<REPLACE_WITH_PREFIX_LENGTH>"
+storage_vm_ipv4_gateway: "<REPLACE_WITH_GATEWAY>"
+storage_vm_dns_servers: "<REPLACE_WITH_DNS_SERVERS>"
+storage_vm_ssh_public_key: "<REPLACE_WITH_SSH_PUBLIC_KEY>"
+storage_vm_start_on_boot: true
+storage_vm_tags: "storage"

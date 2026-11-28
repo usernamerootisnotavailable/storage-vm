@@ -13,6 +13,7 @@ The environment is selected only by:
 
 - The inventory directory passed with `-i`
 - The SOPS age key selected by `SOPS_AGE_KEY_FILE`
+- The OpenTofu workspace selected by `ENV` for VM provisioning
 
 `ansible.cfg` has no default inventory. Every command must pass `-i` or set
 `INVENTORY` for the Makefile check targets. Production always requires an
@@ -29,6 +30,8 @@ inventories/dev/
       versions.yml
       environment.sops.yml
       environment.sops.yml.example
+      infrastructure.sops.yml
+      infrastructure.sops.yml.example
   host_vars/
     storage01/main.yml
 
@@ -40,6 +43,8 @@ inventories/prod/
       versions.yml
       environment.sops.yml
       environment.sops.yml.example
+      infrastructure.sops.yml
+      infrastructure.sops.yml.example
   host_vars/
     storage01/main.yml
 
@@ -57,13 +62,17 @@ inventories/ci/
 Both deployment inventories define the same `storage` group and the same
 logical host `storage01`. `hosts.yml` contains only groups and host names.
 Connection details, addresses, CIDRs, domains, sizing, endpoints, backup
-settings, public keys, and credentials live in the encrypted
-`group_vars/all/environment.sops.yml`.
+settings, public keys, and credentials live in the encrypted environment files.
 
-`environment.sops.yml.example` is the committed plaintext template. Run
-`make generate ENV=<dev|prod>` to create the encrypted file, then edit it with
-`sops`. The encrypted output is committed; the rendered plaintext is never
-committed.
+`environment.sops.yml` contains Ansible service values and credentials.
+`infrastructure.sops.yml` contains shared connection, VM, and Proxmox
+placement values; it has no passwords. Ansible loads it normally, and OpenTofu
+reads it through `data "sops_file"`.
+
+`environment.sops.yml.example` and `infrastructure.sops.yml.example` are the
+committed plaintext templates. Run `make generate ENV=<dev|prod>` to create the
+encrypted files, then edit them with `sops`. The encrypted outputs are
+committed; the rendered plaintext is never committed.
 
 `inventories/ci` is a synthetic, plaintext test inventory. It is not a
 deployment environment. It uses loopback for the container connection and
@@ -178,7 +187,8 @@ Manual changes on production hosts are forbidden. If an emergency change is requ
 
 An additional environment requires an architecture review. If approved:
 
-1. Copy the inventory structure and add the new `environment.sops.yml.example`.
+1. Copy the inventory structure and add the new `environment.sops.yml.example`
+   and `infrastructure.sops.yml.example`.
 2. Extend `scripts/generate.sh` for the new environment, create a new age
    recipient, and run the generation flow.
 3. Add the matching `.sops.yaml` rules for the inventory and OpenTofu files.

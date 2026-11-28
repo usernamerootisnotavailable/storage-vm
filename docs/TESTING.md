@@ -8,6 +8,9 @@
 | Static analysis | `ansible-lint` production profile | Ansible best practices and common failure modes |
 | Policy | `scripts/check-policy.sh` | No environment branching, unpinned versions, plaintext keys, or missing role contracts |
 | Syntax | `ansible-playbook --syntax-check` | Playbooks, roles, modules, and inventory parse |
+| OpenTofu format | `tofu fmt -check` | HCL formatting |
+| OpenTofu validation | `tofu validate` | Module, provider schema, and expressions |
+| OpenTofu lint | `tflint` | Terraform/OpenTofu conventions |
 | Role behavior | Molecule with Docker | Converge, service health, idempotence |
 | Full stack | `site.yml` on the dev container | Roles compose correctly on one AlmaLinux 10 host |
 | Security | `gitleaks`, policy checks | No plaintext credentials or age identities |
@@ -23,6 +26,7 @@ make syntax INVENTORY=inventories/ci/hosts.yml # syntax-check every playbook
 make check INVENTORY=inventories/ci/hosts.yml  # lint + syntax
 make literals                                  # environment-literal scan
 make generate ENV=dev DRY_RUN=1                # preview environment generation
+make tf-check ENV=dev                          # OpenTofu init, fmt, validate, tflint
 make test-image                                # build the AlmaLinux 10 systemd test image
 make molecule                                  # Molecule for all six roles
 make integration                               # full site.yml on the CI inventory
@@ -178,17 +182,20 @@ The Docker host must provide `vm.max_map_count=262144`; the integration and `dev
 2. **secret-scan** — `gitleaks` with a pinned binary
 3. **molecule** — matrix over `common`, `postgresql`, `mariadb`, `garage`, `elasticsearch`, and `nginx`
 4. **integration** — full `site.yml` on the AlmaLinux 10 container using the synthetic CI inventory, including the Garage S3 snapshot repository, an Elasticsearch snapshot create/read/delete proof with the shared read/write key, and NGINX TLS routing
+5. **tofu** — pinned OpenTofu and TFLint run `tf-init`, `tf-fmt`, `tf-validate`, and `tf-lint` with no credentials
 
 Requirements:
 
 - Actions are pinned by commit SHA.
-- Tool versions come from `requirements-dev.txt`.
+- Tool versions come from `requirements-dev.txt`, the Makefile, and the pinned
+  OpenTofu/TFLint setup actions.
 - Collections come from `requirements.yml`.
 - Pull requests from forks do not receive environment secrets.
 - CI must not print decrypted variables.
 - A failing security check blocks merge.
 
-Branch protection must require the lint, secret-scan, molecule, and integration checks.
+Branch protection must require the lint, secret-scan, molecule, integration, and
+tofu checks.
 
 ## Check mode
 
@@ -221,6 +228,7 @@ Docker cannot validate:
 - Let's Encrypt DNS-01, Cloudflare API access, and public DNS
 - Real disk layout, I/O, or filesystem tuning
 - SSH access from an external network
+- OpenTofu plan/apply against a real Proxmox endpoint
 
 Before a production change that touches these areas:
 

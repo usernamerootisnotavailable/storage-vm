@@ -22,6 +22,8 @@ for document in \
   docs/TESTING.md \
   docs/CONTRIBUTING.md \
   docs/COMPONENTS.md \
+  docs/DATABASES.md \
+  docs/TOFU.md \
   docs/components/postgresql.md \
   docs/components/mariadb.md \
   docs/components/garage.md \
@@ -111,8 +113,15 @@ fi
 for environment in dev prod; do
   [[ -f "inventories/${environment}/group_vars/all/environment.sops.yml.example" ]] || \
     fail "missing inventories/${environment}/group_vars/all/environment.sops.yml.example"
+  [[ -f "inventories/${environment}/group_vars/all/infrastructure.sops.yml.example" ]] || \
+    fail "missing inventories/${environment}/group_vars/all/infrastructure.sops.yml.example"
   [[ -f "tofu/${environment}.sops.yml.example" ]] || \
     fail "missing tofu/${environment}.sops.yml.example"
+  if grep -vE '^[[:space:]]*#' \
+    "inventories/${environment}/group_vars/all/infrastructure.sops.yml.example" |
+    grep -qE 'secret_|password|token'; then
+    fail "infrastructure.sops.yml.example must not contain credentials"
+  fi
 done
 
 # Inventory parity, dependency pinning, and version parity.
